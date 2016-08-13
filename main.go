@@ -179,6 +179,8 @@ func main() {
 		debugf("Progress: %.2f %%", progressPerc)
 		if res.DoneElements == res.TotalElements {
 			debug("@@@ COMPLETED 100% @@@")
+			debugf("removing %v", output+resumerSuffix)
+			os.Remove(output + resumerSuffix)
 			return
 		}
 
