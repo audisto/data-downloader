@@ -177,12 +177,17 @@ MainLoop:
 		if res.TotalElements > 0 && res.DoneElements > 0 {
 			progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
 		}
-		debugf("Progress: %.2f %%", progressPerc)
+		debugf("Progress: %.1f %%", progressPerc)
 		if res.DoneElements == res.TotalElements {
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
 			os.Remove(output + resumerSuffix)
 			return
+		}
+
+		remainingElements := res.TotalElements - res.DoneElements
+		if remainingElements < res.chunkSize {
+			res.chunkSize = remainingElements
 		}
 
 		debugf("calling next chunk")
@@ -218,7 +223,7 @@ MainLoop:
 					}
 				default:
 					{
-						fmt.Println("Unknown error occured")
+						fmt.Printf("\nUnknown error occured (code %v).\n", statusCode)
 						return
 					}
 				}
