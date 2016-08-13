@@ -179,6 +179,8 @@ var progressString string
 var timeoutCount int
 var errorCount int
 
+var averageTimePer1000 float64 = 1.4
+
 func updateProgress(s string) {
 	progressString = s
 }
@@ -187,14 +189,19 @@ func progressLoop() {
 	var n int = 0
 	var max int = 10
 	for {
+
+		ETAs, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
+		ETA := time.Duration(ETAs) * time.Millisecond * 110
+		ETAstring := ETA.String()
+
 		progressMessage := progressString + chs(n, ".") + chs(max-n, "*")
-		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", "hh:mm:ss")
+		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", ETAstring)
 		progressMessage = progressMessage + fmt.Sprintf(" Chunk size %v |", res.chunkSize)
 		progressMessage = progressMessage + fmt.Sprintf(" %v timeouts |", timeoutCount)
 		progressMessage = progressMessage + fmt.Sprintf(" %v errors |", errorCount)
 
 		fmt.Fprintln(progressIndicator, progressMessage)
-		time.Sleep(time.Millisecond * 400)
+		time.Sleep(time.Millisecond * 500)
 
 		n += 1
 		if n >= max {
@@ -225,6 +232,8 @@ func main() {
 	debugf("%#v\n", res)
 MainLoop:
 	for {
+		var startTime time.Time = time.Now()
+		var processedLines int64 = 0
 
 		//res.chunkSize = int64(random(1000, 10000))
 		progressPerc := res.progress()
@@ -327,11 +336,19 @@ MainLoop:
 		for scanner.Scan() {
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 			res.DoneElements += 1
+			processedLines += 1
 		}
 
 		outputWriter.Flush()
 		debugf("res.DoneElements = %v", res.DoneElements)
 		res.PersistConfig()
+
+		itTook := time.Since(startTime)
+		temp := big.NewFloat(0).Quo(big.NewFloat(itTook.Seconds()), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(big.NewInt(processedLines)), big.NewFloat(1000)))
+		lastSpeed, _ := temp.Float64()
+		SMOOTHING_FACTOR := 0.005
+		averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHING_FACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHING_FACTOR)), big.NewFloat(averageTimePer1000)))
+		averageTimePer1000, _ = averageSpeed.Float64()
 
 		if err := scanner.Err(); err != nil {
 			errorCount += 1
