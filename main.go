@@ -169,6 +169,7 @@ func main() {
 	timeoutCount := 0
 
 	debugf("%#v\n", res)
+MainLoop:
 	for {
 
 		//res.chunkSize = int64(random(1000, 10000))
@@ -195,11 +196,12 @@ func main() {
 		debugf("statusCode: %v", statusCode)
 
 		// check status code
+
 		switch {
 		case statusCode == 429:
 			{
 				time.Sleep(time.Second * 30)
-				break
+				continue MainLoop
 			}
 		case statusCode >= 400 && statusCode < 500:
 			{
@@ -219,9 +221,7 @@ func main() {
 						fmt.Println("Unknown error occured")
 						return
 					}
-
 				}
-
 			}
 		case statusCode == 504:
 			{
@@ -233,12 +233,12 @@ func main() {
 					}
 				}
 				time.Sleep(time.Second * 30)
-				break
+				continue MainLoop
 			}
 		case statusCode >= 500 && statusCode < 600:
 			{
 				time.Sleep(time.Second * 30)
-				break
+				continue MainLoop
 			}
 		}
 
