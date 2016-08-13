@@ -250,12 +250,20 @@ func main() {
 		debug("res.DoneElements = %v", res.DoneElements)
 		res.PersistConfig()
 
-		progressPerc := big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+		var progressPerc *big.Float
+		if res.TotalElements > 0 && res.DoneElements > 0 {
+			progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+		}
 
 		debug("Progress: %.2f %", progressPerc)
 
+		if res.DoneElements == res.TotalElements {
+			debug("@@@ COMPLETED @@@", progressPerc)
+			return
+		}
+
 		if err := scanner.Err(); err != nil {
-			fmt.Println(err)
+			fmt.Println("h", err)
 			return
 		}
 
