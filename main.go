@@ -104,7 +104,7 @@ func init() {
 
 			res = Resumer{}
 
-			res.TotalElements, err = totalElements()
+			res.TotalElements, err = TotalElements()
 			if err != nil {
 				panic(err)
 			}
@@ -166,7 +166,7 @@ func random(min, max int) int {
 }
 
 func (r *Resumer) progress() *big.Float {
-	var progressPerc *big.Float = big.NewFloat(0)
+	var progressPerc *big.Float = big.NewFloat(0.0)
 	if res.TotalElements > 0 && res.DoneElements > 0 {
 		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
 	}
@@ -176,29 +176,37 @@ func (r *Resumer) progress() *big.Float {
 var progressIndicator *uilive.Writer
 var progressString string
 
+var timeoutCount int
+var errorCount int
+
 func updateProgress(s string) {
 	progressString = s
 }
 
 func progressLoop() {
-	var n int = 1
+	var n int = 0
+	var max int = 10
 	for {
-		n += 1
-		progressMessage := progressString + dots(n)
+		progressMessage := progressString + chs(n, ".") + chs(max-n, "*")
+		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", "hh:mm:ss")
+		progressMessage = progressMessage + fmt.Sprintf(" Chunk size %v |", res.chunkSize)
+		progressMessage = progressMessage + fmt.Sprintf(" %v timeouts |", timeoutCount)
+		progressMessage = progressMessage + fmt.Sprintf(" %v errors |", errorCount)
 
 		fmt.Fprintln(progressIndicator, progressMessage)
 		time.Sleep(time.Millisecond * 400)
 
-		if n >= 10 {
-			n = 1
+		n += 1
+		if n >= max {
+			n = 0
 		}
 	}
 }
 
-func dots(n int) string {
+func chs(n int, c string) string {
 	var s string
 	for i := 0; i < n; i++ {
-		s = s + "."
+		s = s + c
 	}
 	return s
 }
@@ -212,7 +220,7 @@ func main() {
 
 	debug(username, password, crawl)
 
-	timeoutCount := 0
+	timeoutCount = 0
 
 	debugf("%#v\n", res)
 MainLoop:
@@ -220,10 +228,10 @@ MainLoop:
 
 		//res.chunkSize = int64(random(1000, 10000))
 		progressPerc := res.progress()
-		updateProgress(fmt.Sprintf("%.1f %% of %v pages", progressPerc, res.TotalElements))
+		updateProgress(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
 		debugf("Progress: %.1f %%", progressPerc)
 		if res.DoneElements == res.TotalElements {
-			updateProgress(fmt.Sprint("@@@ COMPLETED 100% @@@"))
+			updateProgress("@@@ COMPLETED 100% @@@")
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
@@ -242,6 +250,7 @@ MainLoop:
 		debugf("calling next chunk")
 		chunk, statusCode, skip, err := res.nextChunk()
 		if err != nil {
+			errorCount += 1
 			debugf("error while calling next chunk; %v\n", err)
 			time.Sleep(time.Second * 5)
 			continue
@@ -250,6 +259,10 @@ MainLoop:
 		debugf("statusCode: %v", statusCode)
 
 		// check status code
+
+		if statusCode != 200 {
+			errorCount += 1
+		}
 
 		switch {
 		case statusCode == 429:
@@ -321,7 +334,8 @@ MainLoop:
 		res.PersistConfig()
 
 		if err := scanner.Err(); err != nil {
-			fmt.Println("h", err)
+			errorCount += 1
+			fmt.Println("error wrile scanning chunk: ", err)
 			return
 		}
 
@@ -442,7 +456,7 @@ func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header,
 	return responseBody, response.StatusCode, nil
 }
 
-func totalElements() (int64, error) {
+func TotalElements() (int64, error) {
 	var body []byte
 	var statusCode int
 	err := retry(5, 1, func() error {
