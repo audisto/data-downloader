@@ -18,10 +18,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gosuri/uilive"
+
 	"math/rand" // for debug purposes
 )
 
-var debugging = true
+var debugging = false
 
 var (
 	username string
@@ -95,7 +97,7 @@ func init() {
 
 			// if resume, check if output file exists
 			if err := fExists(output); err == nil {
-				panic("File already exists; please delete or specify another output filename")
+				panic("File already exists; please resume removing --no-resume, delete or specify another output filename.")
 			}
 
 			var err error
@@ -163,7 +165,51 @@ func random(min, max int) int {
 	return rand.Intn(max-min) + min
 }
 
+func (r *Resumer) progress() *big.Float {
+	var progressPerc *big.Float = big.NewFloat(0)
+	if res.TotalElements > 0 && res.DoneElements > 0 {
+		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+	}
+	return progressPerc
+}
+
+var progressIndicator *uilive.Writer
+var progressString string
+
+func updateProgress(s string) {
+	progressString = s
+}
+
+func progressLoop() {
+	var n int = 1
+	for {
+		n += 1
+		progressMessage := progressString + dots(n)
+
+		fmt.Fprintln(progressIndicator, progressMessage)
+		time.Sleep(time.Millisecond * 400)
+
+		if n >= 10 {
+			n = 1
+		}
+	}
+}
+
+func dots(n int) string {
+	var s string
+	for i := 0; i < n; i++ {
+		s = s + "."
+	}
+	return s
+}
+
 func main() {
+
+	progressIndicator = uilive.New()
+	progressIndicator.Start()
+
+	go progressLoop()
+
 	debug(username, password, crawl)
 
 	timeoutCount := 0
@@ -173,15 +219,18 @@ MainLoop:
 	for {
 
 		//res.chunkSize = int64(random(1000, 10000))
-		var progressPerc *big.Float
-		if res.TotalElements > 0 && res.DoneElements > 0 {
-			progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
-		}
+		progressPerc := res.progress()
+		updateProgress(fmt.Sprintf("%.1f %% of %v pages", progressPerc, res.TotalElements))
 		debugf("Progress: %.1f %%", progressPerc)
 		if res.DoneElements == res.TotalElements {
+			updateProgress(fmt.Sprint("@@@ COMPLETED 100% @@@"))
+
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
 			os.Remove(output + resumerSuffix)
+
+			progressIndicator.Stop()
+
 			return
 		}
 
