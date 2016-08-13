@@ -10,12 +10,15 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"math/rand" // for debug purposes
 )
 
 var debugging = true
@@ -118,7 +121,7 @@ func init() {
 		} else {
 			// if resume, check if output file exists
 			if err := fExists(output); err != nil {
-				panic(fmt.Sprint("Cannot resume; output file does not exist: ", err))
+				panic(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
 			}
 			// if resume, check if resume file exists
 			if err := fExists(output + resumerSuffix); err != nil {
@@ -149,6 +152,11 @@ func init() {
 
 }
 
+func random(min, max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max-min) + min
+}
+
 func main() {
 	debug(username, password, crawl)
 
@@ -158,6 +166,9 @@ func main() {
 
 	debug("%#v\n", res)
 	for {
+
+		//res.chunkSize = int64(random(1000, 10000))
+
 		debug("calling next chunk")
 		chunk, statusCode, skip, err := res.nextChunk()
 		if err != nil {
@@ -200,9 +211,9 @@ func main() {
 		case statusCode == 504:
 			{
 				timeoutCount += 1
-				if timeoutCount > 3 {
-					if (res.chunkSize - 10) > 0 {
-						res.chunkSize = res.chunkSize - 10
+				if timeoutCount >= 3 {
+					if (res.chunkSize - 1000) > 0 {
+						res.chunkSize = res.chunkSize - 1000
 					}
 				}
 				time.Sleep(time.Second * 30)
@@ -216,29 +227,32 @@ func main() {
 		}
 
 		scanner := bufio.NewScanner(bytes.NewReader(chunk))
-		debug("chunk len: %v", len(chunk))
+		debug("chunk bytes len: %v", len(chunk))
 
 		// is DoneElements == 0, don't skip first line
 		if res.DoneElements == 0 {
 			scanner.Scan()
-			outputWriter.Write(scanner.Bytes())
-			outputWriter.Write([]byte("\n"))
+			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 		}
 
 		// skip lines
 		for i := int64(0); i < skip; i++ {
 			scanner.Scan()
-			debug("skipped this row: ", scanner.Text())
+			debug("skipping this row: \n%s ", scanner.Text())
 		}
 
 		for scanner.Scan() {
-			outputWriter.Write(scanner.Bytes())
-			outputWriter.Write([]byte("\n"))
+			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 			res.DoneElements += 1
 		}
 
 		outputWriter.Flush()
 		debug("res.DoneElements = %v", res.DoneElements)
+		res.PersistConfig()
+
+		progressPerc := big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+
+		debug("Progress: %.2f %", progressPerc)
 
 		if err := scanner.Err(); err != nil {
 			fmt.Println(err)
@@ -427,6 +441,11 @@ func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 
 // PersistConfig saves the accounts to file
 func (r *Resumer) PersistConfig() error {
+	// save config to file only if not printing to stdout
+	if output == "" {
+		return nil
+	}
+
 	config, err := json.MarshalIndent(r, "", "	")
 	if err != nil {
 		return err
