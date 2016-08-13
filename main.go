@@ -179,7 +179,7 @@ var progressString string
 var timeoutCount int
 var errorCount int
 
-var averageTimePer1000 float64 = 1.4
+var averageTimePer1000 float64 = 2
 
 func updateProgress(s string) {
 	progressString = s
