@@ -46,6 +46,7 @@ type Resumer struct {
 	DoneElements  int64
 	TotalElements int64
 	chunkSize     int64
+	NoDetails     bool
 
 	httpClient http.Client
 }
@@ -106,6 +107,7 @@ func init() {
 				panic(err)
 			}
 			res.OutputFilename = output
+			res.NoDetails = noDetails
 
 			err = res.PersistConfig()
 			if err != nil {
@@ -144,12 +146,16 @@ func init() {
 			// read and validate resumer file
 			// read and validate output file
 
+			if res.NoDetails != noDetails {
+				panic(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
+			}
+
 		}
 
 	}
 
+	// set chunkSize to 10000
 	res.chunkSize = 10000
-
 }
 
 func random(min, max int) int {
@@ -160,24 +166,31 @@ func random(min, max int) int {
 func main() {
 	debug(username, password, crawl)
 
-	// outputWriter.Write([]byte("hi there"))
-
 	timeoutCount := 0
 
-	debug("%#v\n", res)
+	debugf("%#v\n", res)
 	for {
 
 		//res.chunkSize = int64(random(1000, 10000))
+		var progressPerc *big.Float
+		if res.TotalElements > 0 && res.DoneElements > 0 {
+			progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+		}
+		debugf("Progress: %.2f %%", progressPerc)
+		if res.DoneElements == res.TotalElements {
+			debug("@@@ COMPLETED 100% @@@")
+			return
+		}
 
-		debug("calling next chunk")
+		debugf("calling next chunk")
 		chunk, statusCode, skip, err := res.nextChunk()
 		if err != nil {
-			debug("error while calling next chunk; %v\n", err)
+			debugf("error while calling next chunk; %v\n", err)
 			time.Sleep(time.Second * 5)
 			continue
 		}
-		debug("next chunk obtained")
-		debug("statusCode: %v", statusCode)
+		debugf("next chunk obtained")
+		debugf("statusCode: %v", statusCode)
 
 		// check status code
 		switch {
@@ -214,6 +227,7 @@ func main() {
 				if timeoutCount >= 3 {
 					if (res.chunkSize - 1000) > 0 {
 						res.chunkSize = res.chunkSize - 1000
+						timeoutCount = 0
 					}
 				}
 				time.Sleep(time.Second * 30)
@@ -227,7 +241,7 @@ func main() {
 		}
 
 		scanner := bufio.NewScanner(bytes.NewReader(chunk))
-		debug("chunk bytes len: %v", len(chunk))
+		debugf("chunk bytes len: %v", len(chunk))
 
 		// is DoneElements == 0, don't skip first line
 		if res.DoneElements == 0 {
@@ -238,7 +252,7 @@ func main() {
 		// skip lines
 		for i := int64(0); i < skip; i++ {
 			scanner.Scan()
-			debug("skipping this row: \n%s ", scanner.Text())
+			debugf("skipping this row: \n%s ", scanner.Text())
 		}
 
 		for scanner.Scan() {
@@ -247,20 +261,8 @@ func main() {
 		}
 
 		outputWriter.Flush()
-		debug("res.DoneElements = %v", res.DoneElements)
+		debugf("res.DoneElements = %v", res.DoneElements)
 		res.PersistConfig()
-
-		var progressPerc *big.Float
-		if res.TotalElements > 0 && res.DoneElements > 0 {
-			progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
-		}
-
-		debug("Progress: %.2f %", progressPerc)
-
-		if res.DoneElements == res.TotalElements {
-			debug("@@@ COMPLETED @@@", progressPerc)
-			return
-		}
 
 		if err := scanner.Err(); err != nil {
 			fmt.Println("h", err)
@@ -270,9 +272,15 @@ func main() {
 	}
 }
 
-func debug(format string, a ...interface{}) (n int, err error) {
+func debugf(format string, a ...interface{}) (n int, err error) {
 	if debugging {
 		return fmt.Printf("\n"+format+"\n", a...)
+	}
+	return 0, nil
+}
+func debug(a ...interface{}) (n int, err error) {
+	if debugging {
+		return fmt.Println(a...)
 	}
 	return 0, nil
 }
@@ -324,26 +332,6 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 	return body, statusCode, skipNRows, nil
 }
 
-func lineCounter(r io.Reader) (int, error) {
-
-	buf := make([]byte, 32*1024)
-	count := 0
-	lineSep := []byte{'\n'}
-
-	for {
-		c, err := r.Read(buf)
-		count += bytes.Count(buf[:c], lineSep)
-
-		switch {
-		case err == io.EOF:
-			return count, nil
-
-		case err != nil:
-			return count, err
-		}
-	}
-}
-
 func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header, queryParameters url.Values, bodyParameters url.Values) ([]byte, int, error) {
 
 	domain := fmt.Sprintf("https://%s:%s@api.audisto.com", username, password)
@@ -358,7 +346,7 @@ func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header,
 		return []byte(""), 0, fmt.Errorf("Method not supported: %v", method)
 	}
 
-	debug("request url: %s", requestURL.String())
+	debugf("request url: %s", requestURL.String())
 	request, err := http.NewRequest(method, requestURL.String(), bytes.NewBufferString(bodyParameters.Encode()))
 	if err != nil {
 		return []byte(""), 0, fmt.Errorf("Failed to get the URL %s: %s", requestURL, err)
@@ -479,7 +467,7 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 		}
 
 		time.Sleep(time.Duration(sleep) * time.Second)
-		debug("Something failed, retrying;")
+		debugf("Something failed, retrying;")
 	}
 	return fmt.Errorf("Abandoned after %d attempts, last error: %s", attempts, err)
 }
