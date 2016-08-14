@@ -113,7 +113,7 @@ func init() {
 		res.TotalElements, err = totalElements()
 		if err != nil {
 			fmt.Println(err)
-			return
+			os.Exit(0)
 		}
 		res.OutputFilename = output
 		res.NoDetails = noDetails
@@ -132,7 +132,7 @@ func init() {
 			// if resume, check if output file exists
 			if errOutput == nil {
 				fmt.Println("File already exists; please resume removing --no-resume, delete or specify another output filename.")
-				return
+				os.Exit(0)
 			}
 
 			var err error
@@ -142,7 +142,7 @@ func init() {
 			res.TotalElements, err = totalElements()
 			if err != nil {
 				fmt.Println(err)
-				return
+				os.Exit(0)
 			}
 			res.OutputFilename = output
 			res.NoDetails = noDetails
@@ -162,12 +162,12 @@ func init() {
 			// if resume, check if output file exists
 			if errOutput != nil {
 				fmt.Println(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
-				return
+				os.Exit(0)
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
 				fmt.Println(fmt.Sprintf("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
-				return
+				os.Exit(0)
 			}
 
 			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
@@ -192,7 +192,7 @@ func init() {
 
 			if res.NoDetails != noDetails {
 				fmt.Println(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
-				return
+				os.Exit(0)
 			}
 
 		}
