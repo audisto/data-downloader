@@ -271,13 +271,13 @@ MainLoop:
 		debugf("Next chunk obtained")
 		debugf("statusCode: %v", statusCode)
 
-		// check status code
-
 		// if statusCode is not 200, up by one the error count
 		// which is displayed in the progress bar
 		if statusCode != 200 {
 			errorCount += 1
 		}
+
+		// check status code
 
 		switch {
 		case statusCode == 429:
@@ -327,6 +327,11 @@ MainLoop:
 				time.Sleep(time.Second * 30)
 				continue MainLoop
 			}
+		}
+
+		if statusCode != 200 {
+			// just in case it's not an error in the ranges above
+			continue MainLoop
 		}
 
 		// iterator for the received chunk
