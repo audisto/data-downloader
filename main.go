@@ -92,8 +92,16 @@ func init() {
 	if output == "" {
 		outputWriter = bufio.NewWriter(os.Stdout)
 	} else {
+
+		errOutput, errResumer := fExists(output), fExists(output+resumerSuffix)
+		startAnew := errOutput != nil && errResumer != nil
+
 		// If don't resume, create new set
-		if noResume {
+		if noResume || startAnew {
+
+			if startAnew {
+				fmt.Println("No download to resume; stating new.")
+			}
 
 			// if resume, check if output file exists
 			if err := fExists(output); err == nil {
@@ -150,6 +158,7 @@ func init() {
 
 			// read and validate resumer file
 			// read and validate output file
+			// check last id of the last write batch
 
 			if res.NoDetails != noDetails {
 				panic(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
