@@ -23,8 +23,16 @@ import (
 	"math/rand" // for debug purposes
 )
 
-var debugging = false
+var debugging = false // if true, debug messages will be shown
 
+var (
+	res          Resumer
+	outputWriter *bufio.Writer
+
+	resumerSuffix string = ".audisto_"
+)
+
+// flags
 var (
 	username string
 	password string
@@ -35,11 +43,15 @@ var (
 	noResume  bool
 )
 
+// progress bar elements
 var (
-	res          Resumer
-	outputWriter *bufio.Writer
+	progressIndicator *uilive.Writer
+	progressStatus    string
 
-	resumerSuffix string = ".audisto_"
+	timeoutCount int
+	errorCount   int
+
+	averageTimePer1000 float64 = 5
 )
 
 type Resumer struct {
@@ -53,6 +65,7 @@ type Resumer struct {
 	httpClient http.Client
 }
 
+// chunk is used to get unmarshal the json containing the total number of chunks
 type chunk struct {
 	Chunk struct {
 		Total int64 `json:"total"`
@@ -61,6 +74,7 @@ type chunk struct {
 	} `json:"chunk"`
 }
 
+// init parses flags and sets everything up
 func init() {
 
 	flag.StringVar(&username, "username", "", "API Username (required)")
@@ -96,7 +110,7 @@ func init() {
 
 		res = Resumer{}
 
-		res.TotalElements, err = TotalElements()
+		res.TotalElements, err = totalElements()
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -108,7 +122,7 @@ func init() {
 		errOutput, errResumer := fExists(output), fExists(output+resumerSuffix)
 		startAnew := errOutput != nil && errResumer != nil
 
-		// If don't resume, create new set
+		// if don't resume, create new set
 		if noResume || startAnew {
 
 			if startAnew && !noResume {
@@ -125,7 +139,7 @@ func init() {
 
 			res = Resumer{}
 
-			res.TotalElements, err = TotalElements()
+			res.TotalElements, err = totalElements()
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -152,7 +166,7 @@ func init() {
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
-				fmt.Println(fmt.Sprint("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
+				fmt.Println(fmt.Sprintf("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
 				return
 			}
 
@@ -189,64 +203,6 @@ func init() {
 	res.chunkSize = 10000
 }
 
-func random(min, max int) int {
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-func (r *Resumer) progress() *big.Float {
-	var progressPerc *big.Float = big.NewFloat(0.0)
-	if res.TotalElements > 0 && res.DoneElements > 0 {
-		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
-	}
-	return progressPerc
-}
-
-var progressIndicator *uilive.Writer
-var progressString string
-
-var timeoutCount int
-var errorCount int
-
-var averageTimePer1000 float64 = 2
-
-func updateProgress(s string) {
-	progressString = s
-}
-
-func progressLoop() {
-	var n int = 0
-	var max int = 10
-	for {
-
-		ETAs, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
-		ETA := time.Duration(ETAs) * time.Millisecond * 110
-		ETAstring := ETA.String()
-
-		progressMessage := progressString + chs(n, ".") + chs(max-n, "*")
-		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", ETAstring)
-		progressMessage = progressMessage + fmt.Sprintf(" Chunk size %v |", res.chunkSize)
-		progressMessage = progressMessage + fmt.Sprintf(" %v timeouts |", timeoutCount)
-		progressMessage = progressMessage + fmt.Sprintf(" %v errors |", errorCount)
-
-		fmt.Fprintln(progressIndicator, progressMessage)
-		time.Sleep(time.Millisecond * 500)
-
-		n += 1
-		if n >= max {
-			n = 0
-		}
-	}
-}
-
-func chs(n int, c string) string {
-	var s string
-	for i := 0; i < n; i++ {
-		s = s + c
-	}
-	return s
-}
-
 func main() {
 
 	if output != "" {
@@ -266,10 +222,10 @@ MainLoop:
 		//res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
 
 		progressPerc := res.progress()
-		updateProgress(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
+		updateStatus(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
 		debugf("Progress: %.1f %%", progressPerc)
 		if res.DoneElements == res.TotalElements {
-			updateProgress("@@@ COMPLETED 100% @@@")
+			updateStatus("@@@ COMPLETED 100% @@@")
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
@@ -396,6 +352,18 @@ MainLoop:
 	}
 }
 
+func usage() {
+	fmt.Fprintf(os.Stderr, `usage: audistoDownloader [flags]
+Flags:
+  username    API Username (required)
+  password    API Password (required)
+  crawl       ID of the crawl to download (required)
+  no-details  If passed, details in API request is set to 0 else
+  output      Path for the output file
+  no-resume   If passed, download starts again, else the download is resumed
+`)
+}
+
 func debugf(format string, a ...interface{}) (n int, err error) {
 	if debugging {
 		return fmt.Printf("\n"+format+"\n", a...)
@@ -407,6 +375,46 @@ func debug(a ...interface{}) (n int, err error) {
 		return fmt.Println(a...)
 	}
 	return 0, nil
+}
+
+// fExists returns nil if path is an existing file/folder
+func fExists(path string) error {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+func random(min, max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max-min) + min
+}
+
+// chs() outputs a string made of c repeated n times
+func chs(n int, c string) string {
+	var s string
+	for i := 0; i < n; i++ {
+		s = s + c
+	}
+	return s
+}
+
+func retry(attempts int, sleep int, callback func() error) (err error) {
+	for i := 0; ; i++ {
+		err = callback()
+		if err == nil {
+			return nil
+		}
+
+		if i >= (attempts - 1) {
+			break
+		}
+
+		errorCount += 1
+		time.Sleep(time.Duration(sleep) * time.Second)
+		debugf("Something failed, retrying;")
+	}
+	return fmt.Errorf("Abandoned after %d attempts, last error: %s", attempts, err)
 }
 
 func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
@@ -510,7 +518,7 @@ func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header,
 	return responseBody, response.StatusCode, nil
 }
 
-func TotalElements() (int64, error) {
+func totalElements() (int64, error) {
 	var body []byte
 	var statusCode int
 	err := retry(5, 1, func() error {
@@ -579,45 +587,43 @@ func (r *Resumer) PersistConfig() error {
 	return nil
 }
 
-func retry(attempts int, sleep int, callback func() error) (err error) {
-	for i := 0; ; i++ {
-		err = callback()
-		if err == nil {
-			return nil
-		}
-
-		if i >= (attempts - 1) {
-			break
-		}
-
-		errorCount += 1
-		time.Sleep(time.Duration(sleep) * time.Second)
-		debugf("Something failed, retrying;")
+// progress outputs the progress percentage
+func (r *Resumer) progress() *big.Float {
+	var progressPerc *big.Float = big.NewFloat(0.0)
+	if res.TotalElements > 0 && res.DoneElements > 0 {
+		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
 	}
-	return fmt.Errorf("Abandoned after %d attempts, last error: %s", attempts, err)
+	return progressPerc
 }
 
-// fExists returns nil if path is an existing file/folder
-func fExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return err
+// updateStatus sets the first part of the progress bar message
+func updateStatus(s string) {
+	// TODO: add a mutex?
+	progressStatus = s
+}
+
+// progress animation
+func progressLoop() {
+	var n int = 0
+	var max int = 10
+	for {
+
+		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
+		ETAtime := time.Duration(ETAuint64) * time.Millisecond * 110
+		ETAstring := ETAtime.String()
+
+		progressMessage := progressStatus + chs(n, ".") + chs(max-n, "*")
+		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", ETAstring)
+		progressMessage = progressMessage + fmt.Sprintf(" Chunk size %v |", res.chunkSize)
+		progressMessage = progressMessage + fmt.Sprintf(" %v timeouts |", timeoutCount)
+		progressMessage = progressMessage + fmt.Sprintf(" %v errors |", errorCount)
+
+		fmt.Fprintln(progressIndicator, progressMessage)
+		time.Sleep(time.Millisecond * 500)
+
+		n += 1
+		if n >= max {
+			n = 0
+		}
 	}
-	return nil
-}
-
-func IsDirectory(path string) (bool, error) {
-	fileInfo, err := os.Stat(path)
-	return fileInfo.IsDir(), err
-}
-
-func usage() {
-	fmt.Fprintf(os.Stderr, `usage: audistoDownloader [flags]
-Flags:
-  username    API Username (required)
-  password    API Password (required)
-  crawl       ID of the crawl to download (required)
-  no-details  If passed, details in API request is set to 0 else
-  output      Path for the output file
-  no-resume   If passed, download starts again, else the download is resumed
-`)
 }
