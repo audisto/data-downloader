@@ -51,7 +51,7 @@ var (
 	timeoutCount int
 	errorCount   int
 
-	averageTimePer1000 float64 = 5
+	averageTimePer1000 float64 = 1
 )
 
 type Resumer struct {
@@ -205,6 +205,7 @@ func init() {
 
 func main() {
 
+	// only show progress bar when downloading to file
 	if output != "" {
 		progressIndicator = uilive.New()
 		progressIndicator.Start()
@@ -212,31 +213,41 @@ func main() {
 	}
 
 	debug(username, password, crawl)
-
 	debugf("%#v\n", res)
+
 MainLoop:
 	for {
 		var startTime time.Time = time.Now()
 		var processedLines int64 = 0
 
-		//res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
+		// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
 
 		progressPerc := res.progress()
 		updateStatus(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
 		debugf("Progress: %.1f %%", progressPerc)
+
+		// check if done
 		if res.DoneElements == res.TotalElements {
 			updateStatus("@@@ COMPLETED 100% @@@")
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
+
+			// when done, remove the resumer file
 			if output != "" {
 				os.Remove(output + resumerSuffix)
 
+				// stop the progress bar
 				progressIndicator.Stop()
 			}
+
+			// exit program
 			return
 		}
 
+		// if the remaining elements are less than the page size,
+		// request only the remaining elements without having
+		// to discard anything.
 		remainingElements := res.TotalElements - res.DoneElements
 		if remainingElements < res.chunkSize {
 			res.chunkSize = remainingElements
@@ -262,6 +273,8 @@ MainLoop:
 
 		// check status code
 
+		// if statusCode is not 200, up by one the error count
+		// which is displayed in the progress bar
 		if statusCode != 200 {
 			errorCount += 1
 		}
@@ -269,6 +282,7 @@ MainLoop:
 		switch {
 		case statusCode == 429:
 			{
+				// meaning: multiple requests
 				time.Sleep(time.Second * 30)
 				continue MainLoop
 			}
@@ -296,8 +310,11 @@ MainLoop:
 			{
 				timeoutCount += 1
 				if timeoutCount >= 3 {
+					// throttle
 					if (res.chunkSize - 1000) > 0 {
 						res.chunkSize = res.chunkSize - 1000
+
+						// reset the timeout count
 						timeoutCount = 0
 					}
 				}
@@ -306,36 +323,48 @@ MainLoop:
 			}
 		case statusCode >= 500 && statusCode < 600:
 			{
+				// meaning: server error
 				time.Sleep(time.Second * 30)
 				continue MainLoop
 			}
 		}
 
+		// iterator for the received chunk
 		scanner := bufio.NewScanner(bytes.NewReader(chunk))
 		debugf("chunk bytes len: %v", len(chunk))
 
-		// is DoneElements == 0, don't skip first line
+		// write the header of the tsv
 		if res.DoneElements == 0 {
 			scanner.Scan()
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 		}
 
-		// skip lines
+		// skip lines that we alredy have
 		for i := int64(0); i < skip; i++ {
 			scanner.Scan()
 			debugf("skipping this row: \n%s ", scanner.Text())
 		}
 
+		// iterate over the remaining lines
 		for scanner.Scan() {
+			// write lines (to stdout or file)
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
+
+			// update the in-memory resumer
 			res.DoneElements += 1
+
+			// update the count of lines processed for this chunk
 			processedLines += 1
 		}
 
+		// finalize every write
 		outputWriter.Flush()
-		debugf("res.DoneElements = %v", res.DoneElements)
-		res.PersistConfig()
 
+		// save to file the resumer data (to be able to resume later)
+		res.PersistConfig()
+		debugf("res.DoneElements = %v", res.DoneElements)
+
+		// calculate average speed
 		itTook := time.Since(startTime)
 		temp := big.NewFloat(0).Quo(big.NewFloat(itTook.Seconds()), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(big.NewInt(processedLines)), big.NewFloat(1000)))
 		lastSpeed, _ := temp.Float64()
@@ -343,6 +372,7 @@ MainLoop:
 		averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHING_FACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHING_FACTOR)), big.NewFloat(averageTimePer1000)))
 		averageTimePer1000, _ = averageSpeed.Float64()
 
+		// scanner error
 		if err := scanner.Err(); err != nil {
 			errorCount += 1
 			fmt.Println("error wrile scanning chunk: ", err)
@@ -385,12 +415,13 @@ func fExists(path string) error {
 	return nil
 }
 
+// random returns a random number in the range between min and max
 func random(min, max int) int {
 	rand.Seed(time.Now().Unix())
 	return rand.Intn(max-min) + min
 }
 
-// chs() outputs a string made of c repeated n times
+// chs outputs a string made of c repeated n times
 func chs(n int, c string) string {
 	var s string
 	for i := 0; i < n; i++ {
@@ -399,6 +430,7 @@ func chs(n int, c string) string {
 	return s
 }
 
+// retry operation
 func retry(attempts int, sleep int, callback func() error) (err error) {
 	for i := 0; ; i++ {
 		err = callback()
@@ -411,12 +443,17 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 		}
 
 		errorCount += 1
+
+		// pause before retrying
 		time.Sleep(time.Duration(sleep) * time.Second)
+
 		debugf("Something failed, retrying;")
 	}
 	return fmt.Errorf("Abandoned after %d attempts, last error: %s", attempts, err)
 }
 
+// nextChunkNumber calculates the index of the next chunk,
+// and also returns the number of rows to skip.
 func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
 
 	if r.DoneElements == 0 {
@@ -432,6 +469,7 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
 	return
 }
 
+// nextChunk configures the API request and returns the chunk
 func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 
 	nextChunkNumber, skipNRows := r.nextChunkNumber()
@@ -464,6 +502,7 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 	return body, statusCode, skipNRows, nil
 }
 
+// fetchRawChunk makes the request to the server for a chunk
 func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header, queryParameters url.Values, bodyParameters url.Values) ([]byte, int, error) {
 
 	domain := fmt.Sprintf("https://%s:%s@api.audisto.com", username, password)
@@ -518,10 +557,12 @@ func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header,
 	return responseBody, response.StatusCode, nil
 }
 
+// totalElements asks the server the total number of elements
 func totalElements() (int64, error) {
 	var body []byte
 	var statusCode int
-	err := retry(5, 1, func() error {
+
+	err := retry(5, 3, func() error {
 		var err error
 		body, statusCode, err = res.fetchTotalElements()
 		if err != nil {
@@ -532,6 +573,7 @@ func totalElements() (int64, error) {
 		}
 		return err
 	})
+
 	if err != nil {
 		return 0, err
 	}
@@ -545,6 +587,8 @@ func totalElements() (int64, error) {
 	return firstChunk.Chunk.Total, nil
 }
 
+// fetchTotalElements sets up the request for the first chunk in json,
+// containing the total number of elements.
 func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 
 	path := fmt.Sprintf("/2.0/crawls/%v/pages", crawl)
@@ -567,7 +611,7 @@ func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 	return body, statusCode, nil
 }
 
-// PersistConfig saves the accounts to file
+// PersistConfig saves the resumer to file
 func (r *Resumer) PersistConfig() error {
 	// save config to file only if not printing to stdout
 	if output == "" {
