@@ -91,6 +91,17 @@ func init() {
 	// stdout or output file ?
 	if output == "" {
 		outputWriter = bufio.NewWriter(os.Stdout)
+
+		var err error
+
+		res = Resumer{}
+
+		res.TotalElements, err = TotalElements()
+		if err != nil {
+			panic(err)
+		}
+		res.OutputFilename = output
+		res.NoDetails = noDetails
 	} else {
 
 		errOutput, errResumer := fExists(output), fExists(output+resumerSuffix)
@@ -104,7 +115,7 @@ func init() {
 			}
 
 			// if resume, check if output file exists
-			if err := fExists(output); err == nil {
+			if errOutput == nil {
 				panic("File already exists; please resume removing --no-resume, delete or specify another output filename.")
 			}
 
@@ -137,7 +148,7 @@ func init() {
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
-				panic(fmt.Sprint("Cannot resume; resumer file does not exist: ", err))
+				panic(fmt.Sprint("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
 			}
 
 			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
@@ -232,10 +243,11 @@ func chs(n int, c string) string {
 
 func main() {
 
-	progressIndicator = uilive.New()
-	progressIndicator.Start()
-
-	go progressLoop()
+	if output != "" {
+		progressIndicator = uilive.New()
+		progressIndicator.Start()
+		go progressLoop()
+	}
 
 	debug(username, password, crawl)
 
@@ -254,10 +266,11 @@ MainLoop:
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
-			os.Remove(output + resumerSuffix)
+			if output != "" {
+				os.Remove(output + resumerSuffix)
 
-			progressIndicator.Stop()
-
+				progressIndicator.Stop()
+			}
 			return
 		}
 
