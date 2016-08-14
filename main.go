@@ -264,7 +264,6 @@ MainLoop:
 		err := retry(5, 10, func() error {
 			var err error
 			chunk, statusCode, skip, err = res.nextChunk()
-			errorCount += 1
 			return err
 		})
 
@@ -562,6 +561,7 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 			break
 		}
 
+		errorCount += 1
 		time.Sleep(time.Duration(sleep) * time.Second)
 		debugf("Something failed, retrying;")
 	}
