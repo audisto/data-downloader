@@ -99,7 +99,7 @@ func init() {
 		// If don't resume, create new set
 		if noResume || startAnew {
 
-			if startAnew {
+			if startAnew && !noResume {
 				fmt.Println("No download to resume; stating new.")
 			}
 
