@@ -132,11 +132,11 @@ func init() {
 			outputWriter = bufio.NewWriter(newFile)
 		} else {
 			// if resume, check if output file exists
-			if err := fExists(output); err != nil {
+			if errOutput != nil {
 				panic(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
 			}
 			// if resume, check if resume file exists
-			if err := fExists(output + resumerSuffix); err != nil {
+			if errResumer != nil {
 				panic(fmt.Sprint("Cannot resume; resumer file does not exist: ", err))
 			}
 

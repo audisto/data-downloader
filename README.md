@@ -25,8 +25,8 @@ $ ./audistoDownloader --username="jGSrryHrxtVkxYaONn" --password="UECooHbhYFNBLi
 
 ### Optional parameters
 
-Don't include details: --no-details
+Don't include details: `--no-details`
 
-Don't resume: --no-resume
+Don't resume: add `--no-resume`
 
-Output to terminal (stdout): just omit the --output flag
+Output to terminal (stdout): just omit the `--output="file.tsv"` flag
