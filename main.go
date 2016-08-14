@@ -43,22 +43,22 @@ var (
 )
 
 type Resumer struct {
-	OutputFilename string
+	OutputFilename string `json:"outputFilename"`
 
-	DoneElements  int64
-	TotalElements int64
 	chunkSize     int64
-	NoDetails     bool
+	DoneElements  int64 `json:"doneElements"`
+	TotalElements int64 `json:"totalElements"`
+	NoDetails     bool  `json:"noDetails"`
 
 	httpClient http.Client
 }
 
 type chunk struct {
 	Chunk struct {
-		Total int64
-		Page  int
-		Size  int
-	}
+		Total int64 `json:"total"`
+		Page  int   `json:"page"`
+		Size  int   `json:"size"`
+	} `json:"chunk"`
 }
 
 func init() {
@@ -257,13 +257,21 @@ MainLoop:
 			res.chunkSize = remainingElements
 		}
 
-		debugf("calling next chunk")
-		chunk, statusCode, skip, err := res.nextChunk()
-		if err != nil {
+		debugf("Calling next chunk")
+		var chunk []byte
+		var statusCode int
+		var skip int64
+		err := retry(5, 10, func() error {
+			var err error
+			chunk, statusCode, skip, err = res.nextChunk()
 			errorCount += 1
-			debugf("error while calling next chunk; %v\n", err)
-			time.Sleep(time.Second * 5)
-			continue
+			return err
+		})
+
+		if err != nil {
+			debugf("Error while calling next chunk; %v\n", err)
+			fmt.Println("Network error; please check your connection to the internet and resume download.")
+			return
 		}
 		debugf("next chunk obtained")
 		debugf("statusCode: %v", statusCode)
