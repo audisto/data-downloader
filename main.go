@@ -98,7 +98,8 @@ func init() {
 
 		res.TotalElements, err = TotalElements()
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
+			return
 		}
 		res.OutputFilename = output
 		res.NoDetails = noDetails
@@ -116,7 +117,8 @@ func init() {
 
 			// if resume, check if output file exists
 			if errOutput == nil {
-				panic("File already exists; please resume removing --no-resume, delete or specify another output filename.")
+				fmt.Println("File already exists; please resume removing --no-resume, delete or specify another output filename.")
+				return
 			}
 
 			var err error
@@ -125,7 +127,8 @@ func init() {
 
 			res.TotalElements, err = TotalElements()
 			if err != nil {
-				panic(err)
+				fmt.Println(err)
+				return
 			}
 			res.OutputFilename = output
 			res.NoDetails = noDetails
@@ -144,11 +147,13 @@ func init() {
 		} else {
 			// if resume, check if output file exists
 			if errOutput != nil {
-				panic(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
+				fmt.Println(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
+				return
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
-				panic(fmt.Sprint("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
+				fmt.Println(fmt.Sprint("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
+				return
 			}
 
 			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
@@ -172,7 +177,8 @@ func init() {
 			// check last id of the last write batch
 
 			if res.NoDetails != noDetails {
-				panic(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
+				fmt.Println(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
+				return
 			}
 
 		}
@@ -257,7 +263,8 @@ MainLoop:
 		var startTime time.Time = time.Now()
 		var processedLines int64 = 0
 
-		//res.chunkSize = int64(random(1000, 10000))
+		//res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
+
 		progressPerc := res.progress()
 		updateProgress(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
 		debugf("Progress: %.1f %%", progressPerc)
@@ -290,11 +297,11 @@ MainLoop:
 		})
 
 		if err != nil {
-			debugf("Error while calling next chunk; %v\n", err)
+			debugf("Too many failures while calling next chunk; %v\n", err)
 			fmt.Println("Network error; please check your connection to the internet and resume download.")
 			return
 		}
-		debugf("next chunk obtained")
+		debugf("Next chunk obtained")
 		debugf("statusCode: %v", statusCode)
 
 		// check status code
