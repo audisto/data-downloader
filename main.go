@@ -129,14 +129,17 @@ func init() {
 			}
 			// if resume, check if resume file exists
 			if err := fExists(output + resumerSuffix); err != nil {
-				panic(fmt.Sprint("Cannot resume; resume file does not exist: ", err))
+				panic(fmt.Sprint("Cannot resume; resumer file does not exist: ", err))
 			}
 
 			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
 			if err != nil {
-				panic(fmt.Sprintf("File error: %v\n", err))
+				panic(fmt.Sprintf("Resumer file error: %v\n", err))
 			}
-			json.Unmarshal(resumerFile, &res)
+			err = json.Unmarshal(resumerFile, &res)
+			if err != nil {
+				panic(fmt.Sprintf("Resumer file error: %v\n", err))
+			}
 
 			// open outputFile
 			existingFile, err := os.OpenFile(output, os.O_WRONLY|os.O_APPEND, 0777)
@@ -226,8 +229,6 @@ func main() {
 	go progressLoop()
 
 	debug(username, password, crawl)
-
-	timeoutCount = 0
 
 	debugf("%#v\n", res)
 MainLoop:
