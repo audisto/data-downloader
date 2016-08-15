@@ -89,3 +89,8 @@ func TestNextChunkNumber(t *testing.T) {
 	assert.Equal(t, int64(1), resumer.chunkSize, "they should be equal")
 
 }
+
+func TestUpdateStatus(t *testing.T) {
+	updateStatus("hi there")
+	assert.Equal(t, "hi there", progressStatus, "they should be equal")
+}
