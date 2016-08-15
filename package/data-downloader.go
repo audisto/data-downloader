@@ -74,7 +74,7 @@ type chunk struct {
 	} `json:"chunk"`
 }
 
-// init parses flags and sets everything up
+// Initialize parses flags and sets everything up
 func Initialize() {
 
 	flag.StringVar(&username, "username", "", "API Username (required)")
@@ -197,6 +197,7 @@ func Initialize() {
 	res.chunkSize = 10000
 }
 
+// Run... runs the program
 func Run() {
 
 	// only show progress bar when downloading to file
@@ -226,6 +227,10 @@ MainLoop:
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
+
+			// allow enought time for the progress bar to display
+			// the "complete" message
+			time.Sleep(time.Second)
 
 			// when done, remove the resumer file
 			if output != "" {
