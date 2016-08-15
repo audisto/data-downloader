@@ -275,6 +275,11 @@ MainLoop:
 		case statusCode >= 400 && statusCode < 500:
 			{
 				switch statusCode {
+				case 401:
+					{
+						fmt.Println("Wrong credentials.")
+						return
+					}
 				case 403:
 					{
 						fmt.Println("Access denied. Wrong credentials?")
