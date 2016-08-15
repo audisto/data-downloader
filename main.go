@@ -388,14 +388,16 @@ MainLoop:
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `usage: audistoDownloader [flags]
-Flags:
-  username    API Username (required)
-  password    API Password (required)
-  crawl       ID of the crawl to download (required)
-  no-details  If passed, details in API request is set to 0 else
-  output      Path for the output file
-  no-resume   If passed, download starts again, else the download is resumed
+	fmt.Fprintf(os.Stderr, `usage: data-downloader [OPTIONS]
+	
+Parameters:
+  -username=[USERNAME]    API Username (required)
+  -password=[PASSWORD]    API Password (required)
+  -crawl=[ID]             ID of the crawl to download (required)
+  -output=[FILE]          Path for the output file
+                          If missing the data will be send to the terminal (stdout)
+  -no-details             If passed, the output will contain only basic data (no hints)
+  -no-resume              If passed, the download starts again, else the download is resumed
 `)
 }
 
