@@ -126,13 +126,7 @@ func init() {
 		if noResume || startAnew {
 
 			if startAnew && !noResume {
-				fmt.Println("No download to resume; stating new.")
-			}
-
-			// if resume, check if output file exists
-			if errOutput == nil {
-				fmt.Println("File already exists; please resume removing --no-resume, delete or specify another output filename.")
-				os.Exit(0)
+				fmt.Println("No download to resume; starting new.")
 			}
 
 			var err error
@@ -166,7 +160,7 @@ func init() {
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
-				fmt.Println(fmt.Sprintf("Cannot resume; resumer file %v does not exist: ", output+resumerSuffix))
+				fmt.Println(fmt.Sprintf("Cannot resume; resumer file %v does not exist.", output+resumerSuffix))
 				os.Exit(0)
 			}
 
