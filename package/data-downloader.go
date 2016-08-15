@@ -303,7 +303,14 @@ MainLoop:
 				if timeoutCount >= 3 {
 					// throttle
 					if (res.chunkSize - 1000) > 0 {
-						res.chunkSize = res.chunkSize - 1000
+
+						// if chunkSize is 10000, throttle it down to 7000
+						if res.chunkSize == 10000 {
+							res.chunkSize -= 3000
+						} else {
+							// otherwise throttle it down by 1000
+							res.chunkSize -= 1000
+						}
 
 						// reset the timeout count
 						timeoutCount = 0
