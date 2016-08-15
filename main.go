@@ -388,16 +388,14 @@ MainLoop:
 }
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `usage: data-downloader [OPTIONS]
-	
-Parameters:
-  -username=[USERNAME]    API Username (required)
-  -password=[PASSWORD]    API Password (required)
-  -crawl=[ID]             ID of the crawl to download (required)
-  -output=[FILE]          Path for the output file
-                          If missing the data will be send to the terminal (stdout)
-  -no-details             If passed, the output will contain only basic data (no hints)
-  -no-resume              If passed, the download starts again, else the download is resumed
+	fmt.Fprintf(os.Stderr, `usage: audistoDownloader [flags]
+Flags:
+  username    API Username (required)
+  password    API Password (required)
+  crawl       ID of the crawl to download (required)
+  no-details  If passed, details in API request is set to 0 else
+  output      Path for the output file
+  no-resume   If passed, download starts again, else the download is resumed
 `)
 }
 
@@ -575,9 +573,53 @@ func totalElements() (int64, error) {
 		if err != nil {
 			return err
 		}
-		if statusCode != 200 {
-			err = fmt.Errorf("error while trying to get total number of elements; statusCode %v", statusCode)
+
+		switch {
+		case statusCode == 429:
+			{
+				// meaning: multiple requests
+				err = fmt.Errorf("Error while getting total number of elements: 429, multiple requests")
+				time.Sleep(time.Second * 5)
+			}
+		case statusCode >= 400 && statusCode < 500:
+			{
+				switch statusCode {
+				case 401:
+					{
+						fmt.Println("Wrong credentials.")
+						os.Exit(0)
+					}
+				case 403:
+					{
+						fmt.Println("Access denied. Wrong credentials?")
+						os.Exit(0)
+					}
+				case 404:
+					{
+						fmt.Println("Not found. Correct crawl ID?")
+						os.Exit(0)
+					}
+				default:
+					{
+						fmt.Printf("\nUnknown error occured (code %v).\n", statusCode)
+						os.Exit(0)
+					}
+				}
+			}
+		case statusCode == 504:
+			{
+				// meaning: timeout
+				err = fmt.Errorf("Error while getting total number of elements: 504, server timeout")
+				time.Sleep(time.Second * 5)
+			}
+		case statusCode >= 500 && statusCode < 600:
+			{
+				// meaning: server error
+				err = fmt.Errorf("Error while getting total number of elements: %v, server error", statusCode)
+				time.Sleep(time.Second * 5)
+			}
 		}
+
 		return err
 	})
 
