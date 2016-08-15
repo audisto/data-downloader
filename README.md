@@ -20,7 +20,7 @@ $ go build -o data-downloader main.go
 
 Instructions:
 
-```shell
+```
 usage: data-downloader [options]
 	
 Parameters:
