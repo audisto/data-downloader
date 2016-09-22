@@ -4,6 +4,10 @@ Command line tool for easy data downloads using the Audisto API.
 
 ## Installation from Source
 
+Install Go:
+
+Install the Go runtime by downloading the latest release from here: https://golang.org/dl/
+
 Download:
 
 ```shell
