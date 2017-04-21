@@ -2,32 +2,6 @@
 
 Command line tool for easy data downloads using the Audisto API.
 
-## Installation
-
-You may download compiled executables
- 
-- for Windows (64 bit only): [data-downloader.exe](bin/data-downloader.exe) 
-- for Linux (64 bit only): [data-downloader](bin/data-downloader) 
-- for MacOS (64 bit Intel only): [data-downloader.run](bin/data-downloader.run) 
-
-## Installation from Source
-
-Install Go:
-
-Install the Go runtime by downloading the latest release from here: https://golang.org/dl/
-
-Download:
-
-```shell
-$ go get -u github.com/audisto/data-downloader
-```
-
-Compile:
-
-```shell
-$ go build -o data-downloader main.go
-```
-
 ## Usage
 
 Instructions:
@@ -50,4 +24,27 @@ Start a new download or resume a download with all details:
 
 ```shell
 $ ./data-downloader --username="jGSrryHrxtVkxYaONn" --password="UECooHbhYFNBLiIp" --crawl=123456 --output="myCrawl.tsv"
+```
+
+## Installation
+
+You may download compiled executables from the [releases section](https://github.com/audisto/data-downloader/releases).
+Download a version for your OS and rename it into ```data-downloader```.
+
+## Installation from Source
+
+Install Go:
+
+Install the Go runtime by downloading the latest release from here: https://golang.org/dl/
+
+Download:
+
+```shell
+$ go get -u github.com/audisto/data-downloader
+```
+
+Compile:
+
+```shell
+$ go build -o data-downloader main.go
 ```

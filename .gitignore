@@ -1,5 +1,5 @@
-main
 *.audisto_
 *.tsv
 *.csv
 .idea
+bin
