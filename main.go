@@ -1,6 +1,6 @@
 package main
 
-import "github.com/audisto/data-downloader/package"
+import "./package"
 
 func init() {
 	dataDownloader.Initialize()

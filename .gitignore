@@ -1,4 +1,5 @@
-.gitignore
 main
 *.audisto_
 *.tsv
+*.csv
+.idea

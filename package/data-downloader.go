@@ -41,6 +41,7 @@ var (
 	noDetails bool
 	output    string
 	noResume  bool
+	filter    string
 )
 
 // progress bar elements
@@ -85,12 +86,15 @@ func Initialize() {
 	flag.StringVar(&output, "output", "", "Path for the output file")
 	flag.BoolVar(&noResume, "no-resume", false, "If passed, download starts again, else the download is resumed")
 
+	flag.StringVar(&filter, "filter", "", "Filter all pages by some attributes")
+
 	flag.Usage = usage
 	flag.Parse()
 
 	username = strings.TrimSpace(username)
 	password = strings.TrimSpace(password)
 	output = strings.TrimSpace(output)
+	filter = strings.TrimSpace(filter)
 
 	// Check for non-valid flags
 	usernameIsNull := username == ""
@@ -401,6 +405,7 @@ Parameters:
                           If missing the data will be send to the terminal (stdout)
   -no-details             If passed, details in API request is set to 0 else
   -no-resume              If passed, download starts again, else the download is resumed
+  -filter=[FILTER]        If passed, all pages are filtered by given FILTER
 `)
 }
 
@@ -524,6 +529,9 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 		queryParameters.Add("deep", "0")
 	} else {
 		queryParameters.Add("deep", "1")
+	}
+	if filter != "" {
+		queryParameters.Add("filter", filter)
 	}
 	queryParameters.Add("chunk", strconv.FormatInt(nextChunkNumber, 10))
 	queryParameters.Add("chunk_size", strconv.FormatInt(r.chunkSize, 10))
@@ -681,6 +689,9 @@ func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 	queryParameters.Add("chunk", "0")
 	queryParameters.Add("chunk_size", "1")
 	queryParameters.Add("output", "json")
+	if filter != "" {
+		queryParameters.Add("filter", filter)
+	}
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
 	if err != nil {
