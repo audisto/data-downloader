@@ -23,6 +23,8 @@ import (
 	"math/rand" // for debug purposes
 )
 
+const VERSION = "0.3"
+
 var debugging = false // if true, debug messages will be shown
 
 var (
@@ -42,6 +44,7 @@ var (
 	output    string
 	noResume  bool
 	filter    string
+	order     string
 )
 
 // progress bar elements
@@ -87,6 +90,7 @@ func Initialize() {
 	flag.BoolVar(&noResume, "no-resume", false, "If passed, download starts again, else the download is resumed")
 
 	flag.StringVar(&filter, "filter", "", "Filter all pages by some attributes")
+	flag.StringVar(&order, "order", "", "Order by some attributes")
 
 	flag.Usage = usage
 	flag.Parse()
@@ -95,6 +99,7 @@ func Initialize() {
 	password = strings.TrimSpace(password)
 	output = strings.TrimSpace(output)
 	filter = strings.TrimSpace(filter)
+	order = strings.TrimSpace(order)
 
 	// Check for non-valid flags
 	usernameIsNull := username == ""
@@ -394,8 +399,14 @@ MainLoop:
 	}
 }
 
+func version() {
+	fmt.Fprintln(os.Stderr, "Audisto Data Downloader, Version " + VERSION)
+}
+
 func usage() {
-	fmt.Fprintf(os.Stderr, `usage: data-downloader [options]
+	version()
+	fmt.Fprintf(os.Stderr, `
+usage: data-downloader [options]
 
 Parameters:
   -username=[USERNAME]    API Username (required)
@@ -403,9 +414,10 @@ Parameters:
   -crawl=[ID]             ID of the crawl to download (required)
   -output=[FILE]          Path for the output file
                           If missing the data will be send to the terminal (stdout)
-  -no-details             If passed, details in API request is set to 0 else
+  -no-details             If passed, details in API request is set to 0 else to 1
   -no-resume              If passed, download starts again, else the download is resumed
-  -filter=[FILTER]        If passed, all pages are filtered by given FILTER
+  -filter=[FILTER]        If passed, all pages are filtered by given FILTER./bui
+  -order=[ORDER]          If passed, all pages are ordered by given ORDER
 `)
 }
 
@@ -532,6 +544,9 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 	}
 	if filter != "" {
 		queryParameters.Add("filter", filter)
+	}
+	if order != "" {
+		queryParameters.Add("order", order)
 	}
 	queryParameters.Add("chunk", strconv.FormatInt(nextChunkNumber, 10))
 	queryParameters.Add("chunk_size", strconv.FormatInt(r.chunkSize, 10))

@@ -15,9 +15,10 @@ Parameters:
   -crawl=[ID]             ID of the crawl to download (required)
   -output=[FILE]          Path for the output file
                           If missing the data will be send to the terminal (stdout)
-  -no-details             If passed, details in API request is set to 0 else
+  -no-details             If passed, details in API request is set to 0 else to 1
   -no-resume              If passed, download starts again, else the download is resumed
   -filter=[FILTER]        If passed, all pages are filtered by given FILTER
+  -order=[ORDER]          If passed, all pages are ordered by given ORDER
 ```
 
 Start a new download or resume a download with all details:
