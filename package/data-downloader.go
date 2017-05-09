@@ -707,6 +707,9 @@ func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 	if filter != "" {
 		queryParameters.Add("filter", filter)
 	}
+	if order != "" {
+		queryParameters.Add("order", order)
+	}
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
 	if err != nil {
