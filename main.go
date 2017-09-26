@@ -1,10 +1,16 @@
 package main
 
-import "./package"
+import (
+	"fmt"
+	"os"
 
-func init() {
-	dataDownloader.Initialize()
-}
+	"github.com/audisto/data-downloader/cmd"
+)
+
 func main() {
-	dataDownloader.Run()
+
+	if err := cmd.RootCmd.Execute(); err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
 }

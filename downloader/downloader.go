@@ -1,11 +1,10 @@
-package dataDownloader
+package downloader
 
 import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,11 +18,8 @@ import (
 	"time"
 
 	"github.com/gosuri/uilive"
-
-	"math/rand" // for debug purposes
+	// for debug purposes
 )
-
-const VERSION = "0.3"
 
 var debugging = false // if true, debug messages will be shown
 
@@ -31,20 +27,23 @@ var (
 	res          Resumer
 	outputWriter *bufio.Writer
 
-	resumerSuffix string = ".audisto_"
+	resumerSuffix = ".audisto_"
 )
 
-// flags
+// local variables
 var (
+	// required
 	username string
 	password string
 	crawl    uint64
 
-	noDetails bool
-	output    string
-	noResume  bool
-	filter    string
-	order     string
+	// optional
+	noDetails              bool
+	output                 string
+	noResume               bool
+	filter                 string
+	order                  string
+	chunkNumber, chunkSize uint64
 )
 
 // progress bar elements
@@ -58,13 +57,16 @@ var (
 	averageTimePer1000 float64 = 1
 )
 
+type AudistoAPI struct {
+}
+
 type Resumer struct {
 	OutputFilename string `json:"outputFilename"`
 
-	chunkSize     int64
-	DoneElements  int64 `json:"doneElements"`
-	TotalElements int64 `json:"totalElements"`
-	NoDetails     bool  `json:"noDetails"`
+	chunkSize     uint64
+	DoneElements  uint64 `json:"doneElements"`
+	TotalElements uint64 `json:"totalElements"`
+	NoDetails     bool   `json:"noDetails"`
 
 	httpClient http.Client
 }
@@ -72,43 +74,26 @@ type Resumer struct {
 // chunk is used to get unmarshal the json containing the total number of chunks
 type chunk struct {
 	Chunk struct {
-		Total int64 `json:"total"`
-		Page  int   `json:"page"`
-		Size  int   `json:"size"`
+		Total uint64 `json:"total"`
+		Page  int    `json:"page"`
+		Size  int    `json:"size"`
 	} `json:"chunk"`
 }
 
-// Initialize parses flags and sets everything up
-func Initialize() {
+// Initialize assign parsed flags or params to the local package variables
+func Initialize(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
+	fChunkNumber uint64, fChunkSize uint64, fOutput string, fFilter string,
+	fNoResume bool, fOrder string) error {
+	username = strings.TrimSpace(fUsername)
+	password = strings.TrimSpace(fPassword)
+	crawl = fCrawl
+	noDetails = fDeep
+	output = strings.TrimSpace(fOutput)
+	order = strings.TrimSpace(fOrder)
+	filter = strings.TrimSpace(fFilter)
 
-	flag.StringVar(&username, "username", "", "API Username (required)")
-	flag.StringVar(&password, "password", "", "API Password (required)")
-	flag.Uint64Var(&crawl, "crawl", 0, "ID of the crawl to download (required)")
-
-	flag.BoolVar(&noDetails, "no-details", false, "If passed, details in API request is set to 0 else")
-	flag.StringVar(&output, "output", "", "Path for the output file")
-	flag.BoolVar(&noResume, "no-resume", false, "If passed, download starts again, else the download is resumed")
-
-	flag.StringVar(&filter, "filter", "", "Filter all pages by some attributes")
-	flag.StringVar(&order, "order", "", "Order by some attributes")
-
-	flag.Usage = usage
-	flag.Parse()
-
-	username = strings.TrimSpace(username)
-	password = strings.TrimSpace(password)
-	output = strings.TrimSpace(output)
-	filter = strings.TrimSpace(filter)
-	order = strings.TrimSpace(order)
-
-	// Check for non-valid flags
-	usernameIsNull := username == ""
-	passwordIsNull := password == ""
-	crawlIsNull := crawl == 0
-
-	if usernameIsNull || passwordIsNull || crawlIsNull {
-		usage()
-		os.Exit(0)
+	if username == "" || password == "" || crawl == 0 {
+		return fmt.Errorf("username, password or crawl should not be empty")
 	}
 
 	// stdout or output file ?
@@ -121,9 +106,9 @@ func Initialize() {
 
 		res.TotalElements, err = totalElements()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(0)
+			return err
 		}
+
 		res.OutputFilename = output
 		res.NoDetails = noDetails
 	} else {
@@ -135,7 +120,7 @@ func Initialize() {
 		if noResume || startAnew {
 
 			if startAnew && !noResume {
-				fmt.Println("No download to resume; starting new.")
+				fmt.Println("No download to resume; starting a new...")
 			}
 
 			var err error
@@ -164,13 +149,11 @@ func Initialize() {
 		} else {
 			// if resume, check if output file exists
 			if errOutput != nil {
-				fmt.Println(fmt.Sprintf("Cannot resume; %q file does not exist: use --no-resume to create new.", output))
-				os.Exit(0)
+				return fmt.Errorf("cannot resume; %q file does not exist: use --no-resume to create new", output)
 			}
 			// if resume, check if resume file exists
 			if errResumer != nil {
-				fmt.Println(fmt.Sprintf("Cannot resume; resumer file %v does not exist.", output+resumerSuffix))
-				os.Exit(0)
+				return fmt.Errorf("cannot resume; resumer file %v does not exist", output+resumerSuffix)
 			}
 
 			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
@@ -194,19 +177,38 @@ func Initialize() {
 			// check last id of the last write batch
 
 			if res.NoDetails != noDetails {
-				fmt.Println(fmt.Sprintf("Warning! This file was begun with --no-details=%v; continuing with --no-details=%v will break the file.", res.NoDetails, noDetails))
-				os.Exit(0)
+				return fmt.Errorf("this file was begun with --no-details=%v; continuing with --no-details=%v will break the file", res.NoDetails, noDetails)
 			}
 
 		}
 
 	}
 
-	// set chunkSize to 10000
-	res.chunkSize = 10000
+	// chunk = fChunkNumber
+	if fChunkSize == 0 {
+		// set chunkSize to 10000
+		res.chunkSize = 10000
+	} else {
+		res.chunkSize = fChunkSize
+	}
+
+	return nil
 }
 
-// Run... runs the program
+// Get assign params and execute the Run() function
+func Get(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
+	fChunkNumber uint64, fChunkSize uint64, fOutput string, fFilter string,
+	fNoResume bool, fOrder string) error {
+	err := Initialize(fUsername, fPassword, fCrawl, fDeep, fChunkNumber, fChunkSize,
+		fOutput, fFilter, fNoResume, fOrder)
+	if err != nil {
+		return err
+	}
+	Run()
+	return nil
+}
+
+// Run runs the program
 func Run() {
 
 	// only show progress bar when downloading to file
@@ -256,7 +258,7 @@ MainLoop:
 		debugf("Calling next chunk")
 		var chunk []byte
 		var statusCode int
-		var skip int64
+		var skip uint64
 		err := retry(5, 10, func() error {
 			var err error
 			chunk, statusCode, skip, err = res.nextChunk()
@@ -357,7 +359,7 @@ MainLoop:
 		}
 
 		// skip lines that we alredy have
-		for i := int64(0); i < skip; i++ {
+		for i := uint64(0); i < skip; i++ {
 			scanner.Scan()
 			debugf("skipping this row: \n%s ", scanner.Text())
 		}
@@ -399,64 +401,6 @@ MainLoop:
 	}
 }
 
-func version() {
-	fmt.Fprintln(os.Stderr, "Audisto Data Downloader, Version " + VERSION)
-}
-
-func usage() {
-	version()
-	fmt.Fprintf(os.Stderr, `
-usage: data-downloader [options]
-
-Parameters:
-  -username=[USERNAME]    API Username (required)
-  -password=[PASSWORD]    API Password (required)
-  -crawl=[ID]             ID of the crawl to download (required)
-  -output=[FILE]          Path for the output file
-                          If missing the data will be send to the terminal (stdout)
-  -no-details             If passed, details in API request is set to 0 else to 1
-  -no-resume              If passed, download starts again, else the download is resumed
-  -filter=[FILTER]        If passed, all pages are filtered by given FILTER./bui
-  -order=[ORDER]          If passed, all pages are ordered by given ORDER
-`)
-}
-
-func debugf(format string, a ...interface{}) (n int, err error) {
-	if debugging {
-		return fmt.Printf("\n"+format+"\n", a...)
-	}
-	return 0, nil
-}
-func debug(a ...interface{}) (n int, err error) {
-	if debugging {
-		return fmt.Println(a...)
-	}
-	return 0, nil
-}
-
-// fExists returns nil if path is an existing file/folder
-func fExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-// random returns a random number in the range between min and max
-func random(min, max int) int {
-	rand.Seed(time.Now().Unix())
-	return rand.Intn(max-min) + min
-}
-
-// chs outputs a string made of c repeated n times
-func chs(n int, c string) string {
-	var s string
-	for i := 0; i < n; i++ {
-		s = s + c
-	}
-	return s
-}
-
 // retry operation
 func retry(attempts int, sleep int, callback func() error) (err error) {
 	for i := 0; ; i++ {
@@ -483,7 +427,7 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 // and also returns the number of rows to skip.
 // nextChunkNumber is used to calculate the next chunk number after resuming
 // and also to recalculate the chunk number in case of throttling.
-func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
+func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 
 	// if the remaining elements are less than the page size,
 	// request only the remaining elements without having
@@ -517,12 +461,12 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
 		r.chunkSize = 1
 	}
 
-	nextChunkNumber = int64(nextChunkNumberFloat)
+	nextChunkNumber = uint64(nextChunkNumberFloat)
 	return
 }
 
 // nextChunk configures the API request and returns the chunk
-func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
+func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 
 	nextChunkNumber, skipNRows := r.nextChunkNumber()
 
@@ -548,8 +492,8 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 	if order != "" {
 		queryParameters.Add("order", order)
 	}
-	queryParameters.Add("chunk", strconv.FormatInt(nextChunkNumber, 10))
-	queryParameters.Add("chunk_size", strconv.FormatInt(r.chunkSize, 10))
+	queryParameters.Add("chunk", strconv.FormatUint(nextChunkNumber, 10))
+	queryParameters.Add("chunk_size", strconv.FormatUint(r.chunkSize, 10))
 	queryParameters.Add("output", "tsv")
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
@@ -616,7 +560,7 @@ func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header,
 }
 
 // totalElements asks the server the total number of elements
-func totalElements() (int64, error) {
+func totalElements() (uint64, error) {
 	var body []byte
 	var statusCode int
 
@@ -743,7 +687,7 @@ func (r *Resumer) PersistConfig() error {
 func (r *Resumer) progress() *big.Float {
 	var progressPerc *big.Float = big.NewFloat(0.0)
 	if res.TotalElements > 0 && res.DoneElements > 0 {
-		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)))
+		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(res.TotalElements), big.NewFloat(0).SetUint64(res.DoneElements)))
 	}
 	return progressPerc
 }
@@ -760,7 +704,7 @@ func progressLoop() {
 	var max int = 10
 	for {
 
-		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetInt64(res.TotalElements), big.NewFloat(0).SetInt64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
+		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(res.TotalElements), big.NewFloat(0).SetUint64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
 		ETAtime := time.Duration(ETAuint64) * time.Millisecond * 110
 		ETAstring := ETAtime.String()
 
