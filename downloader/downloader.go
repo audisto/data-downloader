@@ -44,6 +44,7 @@ var (
 	filter                 string
 	order                  string
 	chunkNumber, chunkSize uint64
+	mode                   string
 )
 
 // progress bar elements
@@ -81,9 +82,9 @@ type chunk struct {
 }
 
 // Initialize assign parsed flags or params to the local package variables
-func Initialize(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
-	fChunkNumber uint64, fChunkSize uint64, fOutput string, fFilter string,
-	fNoResume bool, fOrder string) error {
+func Initialize(fUsername string, fPassword string, fCrawl uint64, fMode string,
+	fDeep bool, fChunkNumber uint64, fChunkSize uint64, fOutput string,
+	fFilter string, fNoResume bool, fOrder string) error {
 	username = strings.TrimSpace(fUsername)
 	password = strings.TrimSpace(fPassword)
 	crawl = fCrawl
@@ -91,9 +92,14 @@ func Initialize(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
 	output = strings.TrimSpace(fOutput)
 	order = strings.TrimSpace(fOrder)
 	filter = strings.TrimSpace(fFilter)
+	mode = strings.TrimSpace(fMode)
 
 	if username == "" || password == "" || crawl == 0 {
-		return fmt.Errorf("username, password or crawl should not be empty")
+		return fmt.Errorf("username, password or crawl should NOT be empty")
+	}
+
+	if mode != "" && mode != "pages" && mode != "links" {
+		return fmt.Errorf("mode has to be 'links' or 'pages'")
 	}
 
 	// stdout or output file ?
@@ -196,10 +202,10 @@ func Initialize(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
 }
 
 // Get assign params and execute the Run() function
-func Get(fUsername string, fPassword string, fCrawl uint64, fDeep bool,
-	fChunkNumber uint64, fChunkSize uint64, fOutput string, fFilter string,
-	fNoResume bool, fOrder string) error {
-	err := Initialize(fUsername, fPassword, fCrawl, fDeep, fChunkNumber, fChunkSize,
+func Get(fUsername string, fPassword string, fCrawl uint64, fMode string,
+	fDeep bool, fChunkNumber uint64, fChunkSize uint64, fOutput string,
+	fFilter string, fNoResume bool, fOrder string) error {
+	err := Initialize(fUsername, fPassword, fCrawl, fMode, fDeep, fChunkNumber, fChunkSize,
 		fOutput, fFilter, fNoResume, fOrder)
 	if err != nil {
 		return err
@@ -474,7 +480,7 @@ func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 		skipNRows += 1
 	}
 
-	path := fmt.Sprintf("/2.0/crawls/%v/pages", crawl)
+	path := fmt.Sprintf("/2.0/crawls/%v/%s", crawl, mode)
 	method := "GET"
 
 	headers := http.Header{}
