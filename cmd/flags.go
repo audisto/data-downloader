@@ -103,7 +103,7 @@ func normalizeFlags() {
 	filter = strings.TrimSpace(filter)
 	order = strings.TrimSpace(order)
 
-	// lowercase 'mode' and
+	// lowercase 'mode'
 	mode = strings.ToLower(mode)
 
 	// lowercase 'targets' when it's being set to 'self'
