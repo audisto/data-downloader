@@ -22,7 +22,7 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	// register global flags that applies to all commands.
+	// register global flags that apply to the root command
 	registerPersistentFlags(RootCmd)
 }
 
