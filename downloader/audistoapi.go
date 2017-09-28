@@ -11,12 +11,10 @@ const (
 	// AudistoAPIDomain the domain name endpoint for Audisto API
 	AudistoAPIDomain = "api.audisto.com"
 
-	// AudistoAPIEndpoint URL enpoint for Audisto API, put "" or "/" string if the
-	// the enpoint is at the root domain
+	// AudistoAPIEndpoint URL enpoint for Audisto API, put "" or "/" string if the endpoint is at the root domain
 	AudistoAPIEndpoint = "/crawls/"
 
-	// AudistoAPIVersion the version of Audisto API version this downloader will
-	// talk to
+	// AudistoAPIVersion the version of Audisto API version this downloader will talk to
 	AudistoAPIVersion = "2.0"
 
 	// EndpointSchema http or https, this probably wont change, hence it is set here
@@ -25,17 +23,15 @@ const (
 	// DefaultRequestMethod used when http request method is not explicitly set
 	DefaultRequestMethod = "GET"
 
-	// DefaultOutputFormat the default formatting or file extension for the response
-	// we get from Audisto API if not expilictly set
+	// DefaultOutputFormat the default formatting or file extension for the response we get from Audisto API if not expilictly set
 	DefaultOutputFormat = "tsv"
 
-	// DefaultChunkSize the default chunk size for interacting with Audisto API
-	// if NOT expilicty set. This should not affect the way throttling works
+	// DefaultChunkSize the default chunk size for interacting with Audisto API if NOT expilicty set
+	// This should not affect the way throttling works
 	DefaultChunkSize = 10000
 )
 
-// AudistoAPIClient a struct holding all the variables requred to construct a URL with
-// query params for Audisto API
+// AudistoAPIClient a struct holding all information requred to construct a URL with query params for Audisto API
 type AudistoAPIClient struct {
 
 	// request path / DSN
@@ -57,8 +53,7 @@ type AudistoAPIClient struct {
 	requestMethod string
 }
 
-// GetAPIEndpoint constructs the Audisto API endpoint without the query params
-// nor the dsn part.
+// GetAPIEndpoint constructs the Audisto API endpoint without the query params nor the dsn part.
 func (api *AudistoAPIClient) GetAPIEndpoint() string {
 	endpoint := strings.Trim(AudistoAPIEndpoint, "/")
 	urlParts := []string{AudistoAPIDomain, AudistoAPIVersion, endpoint}
