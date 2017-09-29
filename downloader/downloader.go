@@ -24,27 +24,14 @@ import (
 var debugging = false // if true, debug messages will be shown
 
 var (
+	client       AudistoAPIClient
 	res          Resumer
 	outputWriter *bufio.Writer
 
 	resumerSuffix = ".audisto_"
-)
 
-// local variables
-var (
-	// required
-	username string
-	password string
-	crawl    uint64
-
-	// optional
-	noDetails              bool
-	output                 string
-	noResume               bool
-	filter                 string
-	order                  string
-	chunkNumber, chunkSize uint64
-	mode                   string
+	output   string
+	noResume bool
 )
 
 // progress bar elements
@@ -57,9 +44,6 @@ var (
 
 	averageTimePer1000 float64 = 1
 )
-
-type AudistoAPI struct {
-}
 
 type Resumer struct {
 	OutputFilename string `json:"outputFilename"`
@@ -82,23 +66,30 @@ type chunk struct {
 }
 
 // Initialize assign parsed flags or params to the local package variables
-func Initialize(fUsername string, fPassword string, fCrawl uint64, fMode string,
-	fDeep bool, fChunkNumber uint64, fChunkSize uint64, fOutput string,
-	fFilter string, fNoResume bool, fOrder string) error {
-	username = strings.TrimSpace(fUsername)
-	password = strings.TrimSpace(fPassword)
-	crawl = fCrawl
-	noDetails = fDeep
-	output = strings.TrimSpace(fOutput)
-	order = strings.TrimSpace(fOrder)
-	filter = strings.TrimSpace(fFilter)
-	mode = strings.TrimSpace(fMode)
+func Initialize(username string, password string, crawl uint64, mode string,
+	noDetails bool, chunkNumber uint64, chunkSize uint64, fOutput string,
+	filter string, fNoResume bool, order string) error {
 
-	if username == "" || password == "" || crawl == 0 {
+	output = fOutput
+	noResume = fNoResume
+
+	client = AudistoAPIClient{
+		Username: strings.TrimSpace(username),
+		Password: strings.TrimSpace(password),
+		CrawlID:  crawl,
+		Mode:     strings.TrimSpace(mode),
+		Deep:     noDetails != true,
+		Order:    strings.TrimSpace(order),
+		Filter:   strings.TrimSpace(filter),
+	}
+
+	client.SetChunkSize(chunkSize)
+
+	if client.Username == "" || client.Password == "" || client.CrawlID == 0 {
 		return fmt.Errorf("username, password or crawl should NOT be empty")
 	}
 
-	if mode != "" && mode != "pages" && mode != "links" {
+	if client.Mode != "" && client.Mode != "pages" && client.Mode != "links" {
 		return fmt.Errorf("mode has to be 'links' or 'pages'")
 	}
 
@@ -191,12 +182,16 @@ func Initialize(fUsername string, fPassword string, fCrawl uint64, fMode string,
 	}
 
 	// chunk = fChunkNumber
-	if fChunkSize == 0 {
-		// set chunkSize to 10000
-		res.chunkSize = 10000
-	} else {
-		res.chunkSize = fChunkSize
-	}
+
+	res.chunkSize = client.ChunkSize
+	/*
+		if fChunkSize == 0 {
+			// set chunkSize to 10000
+			res.chunkSize = 10000
+		} else {
+			res.chunkSize = fChunkSize
+		}
+	*/
 
 	return nil
 }
@@ -224,18 +219,18 @@ func Run() {
 		go progressLoop()
 	}
 
-	debug(username, password, crawl)
+	debug(client.Username, client.Password, client.CrawlID)
 	debugf("%#v\n", res)
 
 MainLoop:
 	for {
 		var startTime time.Time = time.Now()
-		var processedLines int64 = 0
+		var processedLines int64
 
 		// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
 
 		progressPerc := res.progress()
-		updateStatus(fmt.Sprintf("%.1f%% of %v pages", progressPerc, res.TotalElements))
+		updateStatus(fmt.Sprintf("%.1f%% of %v %s", progressPerc, res.TotalElements, client.Mode))
 		debugf("Progress: %.1f %%", progressPerc)
 
 		// check if done
@@ -376,10 +371,10 @@ MainLoop:
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 
 			// update the in-memory resumer
-			res.DoneElements += 1
+			res.DoneElements++
 
 			// update the count of lines processed for this chunk
-			processedLines += 1
+			processedLines++
 		}
 
 		// finalize every write
@@ -419,7 +414,7 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 			break
 		}
 
-		errorCount += 1
+		errorCount++
 
 		// pause before retrying
 		time.Sleep(time.Duration(sleep) * time.Second)
@@ -477,26 +472,26 @@ func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 	nextChunkNumber, skipNRows := r.nextChunkNumber()
 
 	if r.DoneElements > 0 {
-		skipNRows += 1
+		skipNRows++
 	}
 
-	path := fmt.Sprintf("/2.0/crawls/%v/%s", crawl, mode)
+	path := fmt.Sprintf("/2.0/crawls/%v/%s", client.CrawlID, client.Mode)
 	method := "GET"
 
 	headers := http.Header{}
 	bodyParameters := url.Values{}
 
 	queryParameters := url.Values{}
-	if noDetails {
-		queryParameters.Add("deep", "0")
-	} else {
+	if client.Deep {
 		queryParameters.Add("deep", "1")
+	} else {
+		queryParameters.Add("deep", "0")
 	}
-	if filter != "" {
-		queryParameters.Add("filter", filter)
+	if client.Filter != "" {
+		queryParameters.Add("filter", client.Filter)
 	}
-	if order != "" {
-		queryParameters.Add("order", order)
+	if client.Order != "" {
+		queryParameters.Add("order", client.Order)
 	}
 	queryParameters.Add("chunk", strconv.FormatUint(nextChunkNumber, 10))
 	queryParameters.Add("chunk_size", strconv.FormatUint(r.chunkSize, 10))
@@ -513,7 +508,10 @@ func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 // fetchRawChunk makes the request to the server for a chunk
 func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header, queryParameters url.Values, bodyParameters url.Values) ([]byte, int, error) {
 
-	domain := fmt.Sprintf("https://%s:%s@api.audisto.com", username, password)
+	domain := fmt.Sprintf("https://%s:%s@api.audisto.com", client.Username, client.Password)
+	debug(domain)
+	debug(client.Username)
+	debug(client.Password)
 	requestURL, err := url.Parse(domain)
 	if err != nil {
 		return []byte(""), 0, err
@@ -643,7 +641,7 @@ func totalElements() (uint64, error) {
 // containing the total number of elements.
 func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 
-	path := fmt.Sprintf("/2.0/crawls/%v/pages", crawl)
+	path := fmt.Sprintf("/2.0/crawls/%v/%s", client.CrawlID, client.Mode)
 	method := "GET"
 
 	headers := http.Header{}
@@ -654,11 +652,11 @@ func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
 	queryParameters.Add("chunk", "0")
 	queryParameters.Add("chunk_size", "1")
 	queryParameters.Add("output", "json")
-	if filter != "" {
-		queryParameters.Add("filter", filter)
+	if client.Filter != "" {
+		queryParameters.Add("filter", client.Filter)
 	}
-	if order != "" {
-		queryParameters.Add("order", order)
+	if client.Order != "" {
+		queryParameters.Add("order", client.Order)
 	}
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
@@ -723,7 +721,7 @@ func progressLoop() {
 		fmt.Fprintln(progressIndicator, progressMessage)
 		time.Sleep(time.Millisecond * 500)
 
-		n += 1
+		n++
 		if n >= max {
 			n = 0
 		}
