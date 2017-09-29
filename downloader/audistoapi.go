@@ -139,8 +139,8 @@ func (api *AudistoAPIClient) SetChunkSize(size uint64) {
 	}
 }
 
-// SetNextChunk set AudistoAPI.ChunkNumber to the next chunk number
-func (api *AudistoAPIClient) SetNextChunk(number uint64) {
+// SetNextChunkNumber set AudistoAPI.ChunkNumber to the next chunk number
+func (api *AudistoAPIClient) SetNextChunkNumber(number uint64) {
 	api.ChunkNumber = number
 }
 
