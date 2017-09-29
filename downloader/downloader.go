@@ -85,12 +85,8 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 	client.SetChunkSize(chunkSize)
 
-	if client.Username == "" || client.Password == "" || client.CrawlID == 0 {
-		return fmt.Errorf("username, password or crawl should NOT be empty")
-	}
-
-	if client.Mode != "" && client.Mode != "pages" && client.Mode != "links" {
-		return fmt.Errorf("mode has to be 'links' or 'pages'")
+	if err := client.IsValid(); err != nil {
+		return err
 	}
 
 	// stdout or output file ?
@@ -181,30 +177,22 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 	}
 
-	// chunk = fChunkNumber
-
 	res.chunkSize = client.ChunkSize
-	/*
-		if fChunkSize == 0 {
-			// set chunkSize to 10000
-			res.chunkSize = 10000
-		} else {
-			res.chunkSize = fChunkSize
-		}
-	*/
-
 	return nil
 }
 
 // Get assign params and execute the Run() function
-func Get(fUsername string, fPassword string, fCrawl uint64, fMode string,
-	fDeep bool, fChunkNumber uint64, fChunkSize uint64, fOutput string,
-	fFilter string, fNoResume bool, fOrder string) error {
-	err := Initialize(fUsername, fPassword, fCrawl, fMode, fDeep, fChunkNumber, fChunkSize,
-		fOutput, fFilter, fNoResume, fOrder)
+func Get(username string, password string, crawl uint64, mode string,
+	deep bool, chunknumber uint64, chunkSize uint64, output string,
+	filter string, noResume bool, order string) error {
+
+	err := Initialize(username, password, crawl, mode, deep, chunknumber, chunkSize,
+		output, filter, noResume, order)
+
 	if err != nil {
 		return err
 	}
+
 	Run()
 	return nil
 }

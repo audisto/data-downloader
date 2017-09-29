@@ -53,6 +53,20 @@ type AudistoAPIClient struct {
 	requestMethod string
 }
 
+// IsValid check if the struct info look good. this does not do any remote request.
+func (api *AudistoAPIClient) IsValid() error {
+
+	if api.Username == "" || api.Password == "" || api.CrawlID == 0 {
+		return fmt.Errorf("username, password or crawl should NOT be empty")
+	}
+
+	if api.Mode != "" && api.Mode != "pages" && api.Mode != "links" {
+		return fmt.Errorf("mode has to be 'links' or 'pages'")
+	}
+
+	return nil
+}
+
 // GetAPIEndpoint constructs the Audisto API endpoint without the query params nor the dsn part.
 func (api *AudistoAPIClient) GetAPIEndpoint() string {
 	endpoint := strings.Trim(AudistoAPIEndpoint, "/")
