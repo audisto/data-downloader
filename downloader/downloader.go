@@ -451,39 +451,26 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 	}
 
 	nextChunkNumber = uint64(nextChunkNumberFloat)
+	client.SetNextChunkNumber(nextChunkNumber)
 	return
 }
 
 // nextChunk configures the API request and returns the chunk
 func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 
-	nextChunkNumber, skipNRows := r.nextChunkNumber()
+	_, skipNRows := r.nextChunkNumber()
 
 	if r.DoneElements > 0 {
 		skipNRows++
 	}
 
-	path := fmt.Sprintf("/2.0/crawls/%v/%s", client.CrawlID, client.Mode)
-	method := "GET"
+	path := client.GetRelativePath()
+	method := client.GetRequestMethod()
 
 	headers := http.Header{}
 	bodyParameters := url.Values{}
 
-	queryParameters := url.Values{}
-	if client.Deep {
-		queryParameters.Add("deep", "1")
-	} else {
-		queryParameters.Add("deep", "0")
-	}
-	if client.Filter != "" {
-		queryParameters.Add("filter", client.Filter)
-	}
-	if client.Order != "" {
-		queryParameters.Add("order", client.Order)
-	}
-	queryParameters.Add("chunk", strconv.FormatUint(nextChunkNumber, 10))
-	queryParameters.Add("chunk_size", strconv.FormatUint(r.chunkSize, 10))
-	queryParameters.Add("output", "tsv")
+	queryParameters := client.GetQueryParams()
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
 	if err != nil {
