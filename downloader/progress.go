@@ -33,7 +33,7 @@ func progressLoop() {
 
 	for {
 
-		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(res.TotalElements), big.NewFloat(0).SetUint64(res.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
+		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(downloader.TotalElements), big.NewFloat(0).SetUint64(downloader.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
 		ETAtime := time.Duration(ETAuint64) * time.Millisecond * 110
 		ETAstring := ETAtime.String()
 
@@ -56,8 +56,8 @@ func progressLoop() {
 // progress outputs the progress percentage
 func (r *Downloader) progress() *big.Float {
 	var progressPerc *big.Float = big.NewFloat(0.0)
-	if res.TotalElements > 0 && res.DoneElements > 0 {
-		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(res.TotalElements), big.NewFloat(0).SetUint64(res.DoneElements)))
+	if downloader.TotalElements > 0 && downloader.DoneElements > 0 {
+		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(downloader.TotalElements), big.NewFloat(0).SetUint64(downloader.DoneElements)))
 	}
 	return progressPerc
 }

@@ -25,7 +25,7 @@ var debugging = false // if true, debug messages will be shown
 
 var (
 	client       AudistoAPIClient
-	res          Downloader
+	downloader   Downloader
 	outputWriter *bufio.Writer
 
 	resumerSuffix = ".audisto_"
@@ -73,15 +73,15 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 		var err error
 
-		res = Downloader{}
+		downloader = Downloader{}
 
-		res.TotalElements, err = client.GetTotalElements()
+		downloader.TotalElements, err = client.GetTotalElements()
 		if err != nil {
 			return err
 		}
 
-		res.OutputFilename = output
-		res.NoDetails = noDetails
+		downloader.OutputFilename = output
+		downloader.NoDetails = noDetails
 	} else {
 
 		errOutput, errResumer := fExists(output), fExists(output+resumerSuffix)
@@ -96,17 +96,17 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 			var err error
 
-			res = Downloader{}
+			downloader = Downloader{}
 
-			res.TotalElements, err = client.GetTotalElements()
+			downloader.TotalElements, err = client.GetTotalElements()
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(0)
 			}
-			res.OutputFilename = output
-			res.NoDetails = noDetails
+			downloader.OutputFilename = output
+			downloader.NoDetails = noDetails
 
-			err = res.PersistConfig()
+			err = downloader.PersistConfig()
 			if err != nil {
 				panic(err)
 			}
@@ -131,7 +131,7 @@ func Initialize(username string, password string, crawl uint64, mode string,
 			if err != nil {
 				panic(fmt.Sprintf("Resumer file error: %v\n", err))
 			}
-			err = json.Unmarshal(resumerFile, &res)
+			err = json.Unmarshal(resumerFile, &downloader)
 			if err != nil {
 				panic(fmt.Sprintf("Resumer file error: %v\n", err))
 			}
@@ -147,8 +147,8 @@ func Initialize(username string, password string, crawl uint64, mode string,
 			// read and validate output file
 			// check last id of the last write batch
 
-			if res.NoDetails != noDetails {
-				return fmt.Errorf("this file was begun with --no-details=%v; continuing with --no-details=%v will break the file", res.NoDetails, noDetails)
+			if downloader.NoDetails != noDetails {
+				return fmt.Errorf("this file was begun with --no-details=%v; continuing with --no-details=%v will break the file", downloader.NoDetails, noDetails)
 			}
 
 		}
@@ -184,7 +184,7 @@ func Run() error {
 	}
 
 	debug(client.Username, client.Password, client.CrawlID)
-	debugf("%#v\n", res)
+	debugf("%#v\n", downloader)
 
 MainLoop:
 	for {
@@ -193,12 +193,12 @@ MainLoop:
 
 		// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
 
-		progressPerc := res.progress()
-		updateStatus(fmt.Sprintf("%.1f%% of %v %s", progressPerc, res.TotalElements, client.Mode))
+		progressPerc := downloader.progress()
+		updateStatus(fmt.Sprintf("%.1f%% of %v %s", progressPerc, downloader.TotalElements, client.Mode))
 		debugf("Progress: %.1f %%", progressPerc)
 
 		// check if done
-		if res.DoneElements == res.TotalElements {
+		if downloader.DoneElements == downloader.TotalElements {
 			updateStatus("@@@ COMPLETED 100% @@@")
 
 			debug("@@@ COMPLETED 100% @@@")
@@ -226,7 +226,7 @@ MainLoop:
 		var skip uint64
 		err := retry(5, 10, func() error {
 			var err error
-			chunk, statusCode, skip, err = res.nextChunk()
+			chunk, statusCode, skip, err = downloader.nextChunk()
 			return err
 		})
 
@@ -313,7 +313,7 @@ MainLoop:
 		debugf("chunk bytes len: %v", len(chunk))
 
 		// write the header of the tsv
-		if res.DoneElements == 0 {
+		if downloader.DoneElements == 0 {
 			scanner.Scan()
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 		}
@@ -330,7 +330,7 @@ MainLoop:
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 
 			// update the in-memory resumer
-			res.DoneElements++
+			downloader.DoneElements++
 
 			// update the count of lines processed for this chunk
 			processedLines++
@@ -340,8 +340,8 @@ MainLoop:
 		outputWriter.Flush()
 
 		// save to file the resumer data (to be able to resume later)
-		res.PersistConfig()
-		debugf("res.DoneElements = %v", res.DoneElements)
+		downloader.PersistConfig()
+		debugf("res.DoneElements = %v", downloader.DoneElements)
 
 		// calculate average speed
 		itTook := time.Since(startTime)
