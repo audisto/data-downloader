@@ -1,4 +1,4 @@
-package dataDownloader
+package downloader
 
 import (
 	"bufio"
@@ -400,7 +400,7 @@ MainLoop:
 }
 
 func version() {
-	fmt.Fprintln(os.Stderr, "Audisto Data Downloader, Version " + VERSION)
+	fmt.Fprintln(os.Stderr, "Audisto Data Downloader, Version "+VERSION)
 }
 
 func usage() {
