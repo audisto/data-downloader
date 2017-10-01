@@ -3,17 +3,12 @@ package downloader
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math"
 	"math/big"
-	"net/http"
-	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,11 +16,16 @@ import (
 	// for debug purposes
 )
 
+const (
+	// SMOOTHINGFACTOR -
+	SMOOTHINGFACTOR = 0.005
+)
+
 var debugging = false // if true, debug messages will be shown
 
 var (
 	client       AudistoAPIClient
-	res          Resumer
+	res          Downloader
 	outputWriter *bufio.Writer
 
 	resumerSuffix = ".audisto_"
@@ -34,24 +34,13 @@ var (
 	noResume bool
 )
 
-type Resumer struct {
+// Downloader initiate or resume a persisted downloading process info using AudistoAPIClient
+// This also follows and increments chunk number, considering total elements to be downloaded
+type Downloader struct {
 	OutputFilename string `json:"outputFilename"`
-
-	chunkSize     uint64
-	DoneElements  uint64 `json:"doneElements"`
-	TotalElements uint64 `json:"totalElements"`
-	NoDetails     bool   `json:"noDetails"`
-
-	httpClient http.Client
-}
-
-// chunk is used to get unmarshal the json containing the total number of chunks
-type chunk struct {
-	Chunk struct {
-		Total uint64 `json:"total"`
-		Page  int    `json:"page"`
-		Size  int    `json:"size"`
-	} `json:"chunk"`
+	DoneElements   uint64 `json:"doneElements"`
+	TotalElements  uint64 `json:"totalElements"`
+	NoDetails      bool   `json:"noDetails"`
 }
 
 // Initialize assign parsed flags or params to the local package variables
@@ -84,9 +73,9 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 		var err error
 
-		res = Resumer{}
+		res = Downloader{}
 
-		res.TotalElements, err = totalElements()
+		res.TotalElements, err = client.GetTotalElements()
 		if err != nil {
 			return err
 		}
@@ -107,9 +96,9 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 			var err error
 
-			res = Resumer{}
+			res = Downloader{}
 
-			res.TotalElements, err = totalElements()
+			res.TotalElements, err = client.GetTotalElements()
 			if err != nil {
 				fmt.Println(err)
 				os.Exit(0)
@@ -166,7 +155,6 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 	}
 
-	res.chunkSize = client.ChunkSize
 	return nil
 }
 
@@ -182,12 +170,11 @@ func Get(username string, password string, crawl uint64, mode string,
 		return err
 	}
 
-	Run()
-	return nil
+	return Run()
 }
 
 // Run runs the program
-func Run() {
+func Run() error {
 
 	// only show progress bar when downloading to file
 	if output != "" {
@@ -230,7 +217,7 @@ MainLoop:
 			}
 
 			// exit program
-			return
+			return nil
 		}
 
 		debugf("Calling next chunk")
@@ -245,8 +232,7 @@ MainLoop:
 
 		if err != nil {
 			debugf("Too many failures while calling next chunk; %v\n", err)
-			fmt.Println("Network error; please check your connection to the internet and resume download.")
-			return
+			return fmt.Errorf("Network error; please check your connection to the internet and resume download")
 		}
 		debugf("Next chunk obtained")
 		debugf("statusCode: %v", statusCode)
@@ -254,7 +240,7 @@ MainLoop:
 		// if statusCode is not 200, up by one the error count
 		// which is displayed in the progress bar
 		if statusCode != 200 {
-			errorCount += 1
+			errorCount++
 		}
 
 		// check status code
@@ -271,39 +257,35 @@ MainLoop:
 				switch statusCode {
 				case 401:
 					{
-						fmt.Println("Wrong credentials.")
-						return
+						return fmt.Errorf("Wrong credentials")
 					}
 				case 403:
 					{
-						fmt.Println("Access denied. Wrong credentials?")
-						return
+						return fmt.Errorf("Access denied. Wrong credentials?")
 					}
 				case 404:
 					{
-						fmt.Println("Not found. Correct crawl ID?")
-						return
+						return fmt.Errorf("Not found. Correct crawl ID?")
 					}
 				default:
 					{
-						fmt.Printf("\nUnknown error occured (code %v).\n", statusCode)
-						return
+						return fmt.Errorf("\nUnknown error occured (code %v)", statusCode)
 					}
 				}
 			}
 		case statusCode == 504:
 			{
-				timeoutCount += 1
+				timeoutCount++
 				if timeoutCount >= 3 {
 					// throttle
-					if (res.chunkSize - 1000) > 0 {
+					if (client.ChunkSize - 1000) > 0 {
 
 						// if chunkSize is 10000, throttle it down to 7000
-						if res.chunkSize == 10000 {
-							res.chunkSize -= 3000
+						if client.ChunkSize == 10000 {
+							client.ChunkSize -= 3000
 						} else {
 							// otherwise throttle it down by 1000
-							res.chunkSize -= 1000
+							client.ChunkSize -= 1000
 						}
 
 						// reset the timeout count
@@ -365,15 +347,13 @@ MainLoop:
 		itTook := time.Since(startTime)
 		temp := big.NewFloat(0).Quo(big.NewFloat(itTook.Seconds()), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(big.NewInt(processedLines)), big.NewFloat(1000)))
 		lastSpeed, _ := temp.Float64()
-		SMOOTHING_FACTOR := 0.005
-		averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHING_FACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHING_FACTOR)), big.NewFloat(averageTimePer1000)))
+		averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHINGFACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHINGFACTOR)), big.NewFloat(averageTimePer1000)))
 		averageTimePer1000, _ = averageSpeed.Float64()
 
 		// scanner error
 		if err := scanner.Err(); err != nil {
-			errorCount += 1
-			fmt.Println("error wrile scanning chunk: ", err)
-			return
+			errorCount++
+			return fmt.Errorf("error wrile scanning chunk: %s", err.Error())
 		}
 
 	}
@@ -405,15 +385,15 @@ func retry(attempts int, sleep int, callback func() error) (err error) {
 // and also returns the number of rows to skip.
 // nextChunkNumber is used to calculate the next chunk number after resuming
 // and also to recalculate the chunk number in case of throttling.
-func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
+func (r *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 
 	// if the remaining elements are less than the page size,
 	// request only the remaining elements without having
 	// to discard anything.
 	remainingElements := r.TotalElements - r.DoneElements
-	if remainingElements < r.chunkSize &&
-		remainingElements > 0 {
-		r.chunkSize = remainingElements
+	if remainingElements < client.ChunkSize && remainingElements > 0 {
+		// r.chunkSize = remainingElements
+		client.SetChunkSize(remainingElements)
 	}
 
 	// if no elements has been downloaded,
@@ -426,18 +406,20 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 	}
 
 	// just in case
-	if r.chunkSize < 1 {
-		r.chunkSize = 1
+	if client.ChunkSize < 1 {
+		// r.chunkSize = 1
+		client.SetChunkSize(1)
 	}
 
-	skipNRows = r.DoneElements % r.chunkSize
-	nextChunkNumberFloat, _ := math.Modf(float64(r.DoneElements) / float64(r.chunkSize))
+	skipNRows = r.DoneElements % client.ChunkSize
+	nextChunkNumberFloat, _ := math.Modf(float64(r.DoneElements) / float64(client.ChunkSize))
 
 	// just in case nextChunkNumber() gets called when all elements are
 	// already downloaded, download chunk and discard all elements
 	if r.DoneElements == r.TotalElements {
 		skipNRows = 1
-		r.chunkSize = 1
+		// r.chunkSize = 1
+		client.SetChunkSize(1)
 	}
 
 	nextChunkNumber = uint64(nextChunkNumberFloat)
@@ -446,7 +428,7 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 }
 
 // nextChunk configures the API request and returns the chunk
-func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
+func (r *Downloader) nextChunk() ([]byte, int, uint64, error) {
 
 	_, skipNRows := r.nextChunkNumber()
 
@@ -454,15 +436,7 @@ func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 		skipNRows++
 	}
 
-	path := client.GetRelativePath()
-	method := client.GetRequestMethod()
-
-	headers := http.Header{}
-	bodyParameters := url.Values{}
-
-	queryParameters := client.GetQueryParams()
-
-	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
+	body, statusCode, err := client.FetchRawChunk(false)
 	if err != nil {
 		return []byte(""), 0, 0, err
 	}
@@ -470,170 +444,8 @@ func (r *Resumer) nextChunk() ([]byte, int, uint64, error) {
 	return body, statusCode, skipNRows, nil
 }
 
-// fetchRawChunk makes the request to the server for a chunk
-func (r *Resumer) fetchRawChunk(path string, method string, headers http.Header, queryParameters url.Values, bodyParameters url.Values) ([]byte, int, error) {
-
-	domain := fmt.Sprintf("https://%s:%s@api.audisto.com", client.Username, client.Password)
-	debug(domain)
-	debug(client.Username)
-	debug(client.Password)
-	requestURL, err := url.Parse(domain)
-	if err != nil {
-		return []byte(""), 0, err
-	}
-	requestURL.Path = path
-	requestURL.RawQuery = queryParameters.Encode()
-
-	if method != "GET" && method != "POST" && method != "PATCH" && method != "DELETE" {
-		return []byte(""), 0, fmt.Errorf("Method not supported: %v", method)
-	}
-
-	debugf("request url: %s", requestURL.String())
-	request, err := http.NewRequest(method, requestURL.String(), bytes.NewBufferString(bodyParameters.Encode()))
-	if err != nil {
-		return []byte(""), 0, fmt.Errorf("Failed to get the URL %s: %s", requestURL, err)
-	}
-	request.Header = headers
-	request.Header.Add("Content-Length", strconv.Itoa(len(bodyParameters.Encode())))
-
-	request.Header.Add("Connection", "Keep-Alive")
-	request.Header.Add("Accept-Encoding", "gzip, deflate")
-	request.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-
-	response, err := r.httpClient.Do(request)
-	if err != nil {
-		return []byte(""), 0, fmt.Errorf("Failed to get the URL %s: %s", requestURL, err)
-	}
-
-	defer response.Body.Close()
-
-	var responseReader io.ReadCloser
-	switch response.Header.Get("Content-Encoding") {
-	case "gzip":
-		decompressedBodyReader, err := gzip.NewReader(response.Body)
-		if err != nil {
-			return []byte(""), response.StatusCode, err
-		}
-		responseReader = decompressedBodyReader
-		defer responseReader.Close()
-	default:
-		responseReader = response.Body
-	}
-
-	responseBody, err := ioutil.ReadAll(responseReader)
-	if err != nil {
-		return []byte(""), response.StatusCode, err
-	}
-
-	return responseBody, response.StatusCode, nil
-}
-
-// totalElements asks the server the total number of elements
-func totalElements() (uint64, error) {
-	var body []byte
-	var statusCode int
-
-	err := retry(5, 3, func() error {
-		var err error
-		body, statusCode, err = res.fetchTotalElements()
-		if err != nil {
-			return err
-		}
-
-		switch {
-		case statusCode == 429:
-			{
-				// meaning: multiple requests
-				err = fmt.Errorf("Error while getting total number of elements: 429, multiple requests")
-				time.Sleep(time.Second * 5)
-			}
-		case statusCode >= 400 && statusCode < 500:
-			{
-				switch statusCode {
-				case 401:
-					{
-						fmt.Println("Wrong credentials.")
-						os.Exit(0)
-					}
-				case 403:
-					{
-						fmt.Println("Access denied. Wrong credentials?")
-						os.Exit(0)
-					}
-				case 404:
-					{
-						fmt.Println("Not found. Correct crawl ID?")
-						os.Exit(0)
-					}
-				default:
-					{
-						fmt.Printf("\nUnknown error occured (code %v).\n", statusCode)
-						os.Exit(0)
-					}
-				}
-			}
-		case statusCode == 504:
-			{
-				// meaning: timeout
-				err = fmt.Errorf("Error while getting total number of elements: 504, server timeout")
-				time.Sleep(time.Second * 5)
-			}
-		case statusCode >= 500 && statusCode < 600:
-			{
-				// meaning: server error
-				err = fmt.Errorf("Error while getting total number of elements: %v, server error", statusCode)
-				time.Sleep(time.Second * 5)
-			}
-		}
-
-		return err
-	})
-
-	if err != nil {
-		return 0, err
-	}
-
-	var firstChunk chunk
-	err = json.Unmarshal(body, &firstChunk)
-	if err != nil {
-		return 0, err
-	}
-
-	return firstChunk.Chunk.Total, nil
-}
-
-// fetchTotalElements sets up the request for the first chunk in json,
-// containing the total number of elements.
-func (r *Resumer) fetchTotalElements() ([]byte, int, error) {
-
-	path := client.GetRelativePath()
-	method := client.GetRequestMethod()
-
-	headers := http.Header{}
-	bodyParameters := url.Values{}
-
-	queryParameters := url.Values{}
-	queryParameters.Add("deep", "0")
-	queryParameters.Add("chunk", "0")
-	queryParameters.Add("chunk_size", "1")
-	queryParameters.Add("output", "json")
-	if client.Filter != "" {
-		queryParameters.Add("filter", client.Filter)
-	}
-	if client.Order != "" {
-		queryParameters.Add("order", client.Order)
-	}
-
-	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
-	if err != nil {
-		return []byte(""), 0, err
-	}
-
-	return body, statusCode, nil
-}
-
 // PersistConfig saves the resumer to file
-func (r *Resumer) PersistConfig() error {
+func (r *Downloader) PersistConfig() error {
 	// save config to file only if not printing to stdout
 	if output == "" {
 		return nil

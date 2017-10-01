@@ -38,10 +38,10 @@ func progressLoop() {
 		ETAstring := ETAtime.String()
 
 		progressMessage := progressStatus + chs(n, ".") + chs(max-n, "*")
-		progressMessage = progressMessage + fmt.Sprintf(" | ETA %v |", ETAstring)
-		progressMessage = progressMessage + fmt.Sprintf(" Chunk size %v |", res.chunkSize)
-		progressMessage = progressMessage + fmt.Sprintf(" %v timeouts |", timeoutCount)
-		progressMessage = progressMessage + fmt.Sprintf(" %v errors |", errorCount)
+		progressMessage += fmt.Sprintf(" | ETA %v |", ETAstring)
+		progressMessage += fmt.Sprintf(" Chunk size %v |", client.ChunkSize)
+		progressMessage += fmt.Sprintf(" %v timeouts |", timeoutCount)
+		progressMessage += fmt.Sprintf(" %v errors |", errorCount)
 
 		fmt.Fprintln(progressIndicator, progressMessage)
 		time.Sleep(time.Millisecond * 500)
@@ -54,7 +54,7 @@ func progressLoop() {
 }
 
 // progress outputs the progress percentage
-func (r *Resumer) progress() *big.Float {
+func (r *Downloader) progress() *big.Float {
 	var progressPerc *big.Float = big.NewFloat(0.0)
 	if res.TotalElements > 0 && res.DoneElements > 0 {
 		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(res.TotalElements), big.NewFloat(0).SetUint64(res.DoneElements)))
