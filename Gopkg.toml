@@ -23,10 +23,6 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/gosuri/uilive"
-
-[[constraint]]
-  branch = "master"
   name = "github.com/spf13/cobra"
 
 [[constraint]]
@@ -36,3 +32,7 @@
 [[constraint]]
   name = "github.com/fatih/color"
   version = "1.5.0"
+
+[[constraint]]
+  name = "gopkg.in/cheggaaa/pb.v1"
+  version = "1.0.18"

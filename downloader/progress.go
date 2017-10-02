@@ -3,53 +3,57 @@ package downloader
 import (
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 
-	"github.com/gosuri/uilive"
+	pb "gopkg.in/cheggaaa/pb.v1"
+)
+
+const (
+	// ETAFactor ETA milliseconds estimation factor
+	ETAFactor = 175
 )
 
 // progress bar elements
 var (
-	progressIndicator *uilive.Writer
-	progressStatus    string
-
 	timeoutCount int
 	errorCount   int
 
 	averageTimePer1000 float64 = 1
 )
 
-// updateStatus sets the first part of the progress bar message
-func updateStatus(s string) {
-	// TODO: add a mutex?
-	progressStatus = s
-}
-
 // progress animation
 func progressLoop() {
-
-	var n int
-	var max = 10
-
-	for {
+	fmt.Println() // print a new line before showing the progress bar
+	percentage := 0
+	bar := pb.StartNew(100)
+	bar.ShowCounters = false
+	bar.ShowTimeLeft = false
+	startTime := time.Now()
+	bar.Format("╢▌▌░╟")
+	for percentage < 100 {
+		percentage = int((downloader.DoneElements * 100) / downloader.TotalElements)
 
 		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(downloader.TotalElements), big.NewFloat(0).SetUint64(downloader.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
-		ETAtime := time.Duration(ETAuint64) * time.Millisecond * 110
-		ETAstring := ETAtime.String()
+		ETAtime := time.Duration(ETAuint64) * time.Millisecond * ETAFactor
+		ETAstring := PrettyTime(ETAtime)
 
-		progressMessage := progressStatus + chs(n, ".") + chs(max-n, "*")
-		progressMessage += fmt.Sprintf(" | ETA %v |", ETAstring)
-		progressMessage += fmt.Sprintf(" Chunk size %v |", client.ChunkSize)
-		progressMessage += fmt.Sprintf(" %v timeouts |", timeoutCount)
-		progressMessage += fmt.Sprintf(" %v errors |", errorCount)
+		preMsg := fmt.Sprintf("ETA %s |", ETAstring)
+		preMsg += fmt.Sprintf(" Chunk size %d |", client.ChunkSize)
+		preMsg += fmt.Sprintf("%d of %d %s |", downloader.DoneElements, downloader.TotalElements, client.Mode)
+		preMsg += fmt.Sprintf(" %d Timeouts |", timeoutCount)
+		preMsg += fmt.Sprintf(" %d Errors ", errorCount)
+		bar.Prefix(preMsg)
+		bar.Set(percentage)
+		time.Sleep(time.Millisecond * 100)
 
-		fmt.Fprintln(progressIndicator, progressMessage)
-		time.Sleep(time.Millisecond * 500)
+	}
 
-		n++
-		if n >= max {
-			n = 0
-		}
+	bar.FinishPrint(fmt.Sprintf("\nDwonload Completed in %s", PrettyTime(time.Since(startTime))))
+	fi, e := os.Stat(downloader.OutputFilename)
+	if e == nil {
+		filesize := uint64(fi.Size())
+		bar.FinishPrint(fmt.Sprintf("Got %s Saved to: %s", PrettyByteSize(filesize), downloader.OutputFilename))
 	}
 }
 

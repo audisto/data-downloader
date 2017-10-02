@@ -11,8 +11,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/gosuri/uilive"
 	// for debug purposes
 )
 
@@ -100,8 +98,7 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 			downloader.TotalElements, err = client.GetTotalElements()
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(0)
+				return err
 			}
 			downloader.OutputFilename = output
 			downloader.NoDetails = noDetails
@@ -178,8 +175,6 @@ func Run() error {
 
 	// only show progress bar when downloading to file
 	if output != "" {
-		progressIndicator = uilive.New()
-		progressIndicator.Start()
 		go progressLoop()
 	}
 
@@ -194,12 +189,11 @@ MainLoop:
 		// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
 
 		progressPerc := downloader.progress()
-		updateStatus(fmt.Sprintf("%.1f%% of %v %s", progressPerc, downloader.TotalElements, client.Mode))
+
 		debugf("Progress: %.1f %%", progressPerc)
 
 		// check if done
 		if downloader.DoneElements == downloader.TotalElements {
-			updateStatus("@@@ COMPLETED 100% @@@")
 
 			debug("@@@ COMPLETED 100% @@@")
 			debugf("removing %v", output+resumerSuffix)
@@ -211,9 +205,6 @@ MainLoop:
 			// when done, remove the resumer file
 			if output != "" {
 				os.Remove(output + resumerSuffix)
-
-				// stop the progress bar
-				progressIndicator.Stop()
 			}
 
 			// exit program
