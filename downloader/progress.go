@@ -32,7 +32,9 @@ func progressLoop() {
 	startTime := time.Now()
 	bar.Format("╢▌▌░╟")
 	for percentage < 100 {
-		percentage = int((downloader.DoneElements * 100) / downloader.TotalElements)
+		if (downloader.TotalElements > 0) {
+			percentage = int((downloader.DoneElements * 100) / downloader.TotalElements)
+		}
 
 		ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(downloader.TotalElements), big.NewFloat(0).SetUint64(downloader.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
 		ETAtime := time.Duration(ETAuint64) * time.Millisecond * ETAFactor
