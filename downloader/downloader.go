@@ -301,7 +301,7 @@ func (d *Downloader) downloadTarget() error {
 	for {
 		var processedLines int64
 
-		if downloader.isDone() {
+		if d.isDone() {
 			// exit
 			return nil
 		}
@@ -312,7 +312,7 @@ func (d *Downloader) downloadTarget() error {
 		var skip uint64
 		err := retry(5, 10, func() error {
 			var err error
-			chunk, statusCode, skip, err = downloader.nextChunk()
+			chunk, statusCode, skip, err = d.nextChunk()
 			return err
 		})
 
@@ -400,7 +400,7 @@ func (d *Downloader) downloadTarget() error {
 
 		// write the header of the tsv only if it's the first/only target
 		if d.TargetsFileNextID == 0 {
-			if downloader.DoneElements == 0 {
+			if d.DoneElements == 0 {
 				scanner.Scan()
 				outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 			}
@@ -418,8 +418,8 @@ func (d *Downloader) downloadTarget() error {
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 
 			// update the in-memory resumer
-			downloader.CurrentTarget.DoneElements++
-			downloader.DoneElements++
+			d.CurrentTarget.DoneElements++
+			d.DoneElements++
 
 			// update the count of lines processed for this chunk
 			processedLines++
@@ -429,8 +429,8 @@ func (d *Downloader) downloadTarget() error {
 		outputWriter.Flush()
 
 		// save to file the resumer data (to be able to resume later)
-		downloader.PersistConfig()
-		debugf("downloader.DoneElements = %v", downloader.CurrentTarget.DoneElements)
+		d.PersistConfig()
+		debugf("downloader.DoneElements = %v", d.CurrentTarget.DoneElements)
 
 		// scanner error
 		if err := scanner.Err(); err != nil {
@@ -506,7 +506,7 @@ func (d *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 	// if the remaining elements are less than the page size,
 	// request only the remaining elements without having
 	// to discard anything.
-	remainingElements := downloader.CurrentTarget.TotalElements - downloader.CurrentTarget.DoneElements
+	remainingElements := d.CurrentTarget.TotalElements - d.CurrentTarget.DoneElements
 	if remainingElements < client.ChunkSize && remainingElements > 0 {
 		// r.chunkSize = remainingElements
 		client.SetChunkSize(remainingElements)
@@ -514,7 +514,7 @@ func (d *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 
 	// if no elements has been downloaded,
 	// request the first chunk without skipping rows
-	if downloader.CurrentTarget.DoneElements == 0 {
+	if d.CurrentTarget.DoneElements == 0 {
 		nextChunkNumber = 0
 		skipNRows = 0
 		client.SetNextChunkNumber(0)
@@ -527,12 +527,12 @@ func (d *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 		client.SetChunkSize(1)
 	}
 
-	skipNRows = downloader.CurrentTarget.DoneElements % client.ChunkSize
-	nextChunkNumberFloat, _ := math.Modf(float64(downloader.CurrentTarget.DoneElements) / float64(client.ChunkSize))
+	skipNRows = d.CurrentTarget.DoneElements % client.ChunkSize
+	nextChunkNumberFloat, _ := math.Modf(float64(d.CurrentTarget.DoneElements) / float64(client.ChunkSize))
 
 	// just in case nextChunkNumber() gets called when all elements are
 	// already downloaded, download chunk and discard all elements
-	if downloader.CurrentTarget.DoneElements == downloader.CurrentTarget.TotalElements {
+	if d.CurrentTarget.DoneElements == d.CurrentTarget.TotalElements {
 		skipNRows = 1
 		// r.chunkSize = 1
 		client.SetChunkSize(1)
@@ -548,7 +548,7 @@ func (d *Downloader) nextChunk() ([]byte, int, uint64, error) {
 
 	_, skipNRows := d.nextChunkNumber()
 
-	if downloader.CurrentTarget.DoneElements > 0 {
+	if d.CurrentTarget.DoneElements > 0 {
 		skipNRows++
 	}
 
