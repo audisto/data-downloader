@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
-	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -17,38 +16,201 @@ import (
 const (
 	// SMOOTHINGFACTOR -
 	SMOOTHINGFACTOR = 0.005
+	resumerSuffix   = ".audisto_"
 )
 
-var debugging = false // if true, debug messages will be shown
+var debugging = true // if true, debug messages will be shown
 
 var (
 	client       AudistoAPIClient
 	downloader   Downloader
 	outputWriter *bufio.Writer
-
-	resumerSuffix = ".audisto_"
-
-	output   string
-	noResume bool
 )
 
 // Downloader initiate or resume a persisted downloading process info using AudistoAPIClient
 // This also follows and increments chunk number, considering total elements to be downloaded
 type Downloader struct {
-	OutputFilename string `json:"outputFilename"`
-	DoneElements   uint64 `json:"doneElements"`
-	TotalElements  uint64 `json:"totalElements"`
-	NoDetails      bool   `json:"noDetails"`
+	OutputFilename    string        `json:"outputFilename"`
+	TargetsFilename   string        `json:"targetsFilename"`
+	DoneElements      uint64        `json:"doneElements"`
+	TotalElements     uint64        `json:"totalElements"`
+	NoDetails         bool          `json:"noDetails"`
+	TargetsFileMD5    string        `json:"targetsFileMD5"`
+	TargetsFileNextID int           `json:"targetsFileNextID"`
+	CurrentTarget     currentTarget `json:"currentTarget"`
+
+	noResume               bool
+	currentTargetsFilename string
+	currentTargetsMd5Hash  string
+	ids                    []uint64
+	elements               map[uint64]uint64 // [pageID] => totalElements
+}
+
+// current download target.
+// in case of 'targets' mode, this will be dynamic
+type currentTarget struct {
+	DoneElements  uint64 `json:"doneElements"`
+	TotalElements uint64 `json:"totalElements"`
+}
+
+func new(outputFilename string, noResume bool, targets string) (d Downloader) {
+	return Downloader{
+		OutputFilename:         strings.TrimSpace(outputFilename),
+		noResume:               noResume,
+		currentTargetsFilename: strings.TrimSpace(targets),
+	}
+}
+
+// getResumeFilename construct the complete file name of the resume file
+func (d *Downloader) getResumeFilename() string {
+	return d.OutputFilename + resumerSuffix
+}
+
+// tryResume check to see if the current download can be a resume of a previous one
+func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
+
+	// Are we outputing to some file?
+	if d.OutputFilename == "" || d.noResume {
+		return false, nil
+	}
+
+	// Does a resume meta info file exist?
+	if fExists(d.getResumeFilename()) != nil {
+		// do not return an error, just start anew
+		return false, nil
+	}
+
+	// Does the previous output file itself exist?
+	if fExists(d.OutputFilename) != nil {
+		err = fmt.Errorf("cannot resume; %q file does not exist: use --no-resume to create new", d.OutputFilename)
+		return false, err
+	}
+
+	// So far, it looks like there is a resume file, lets try opening it
+	resumerFile, err := ioutil.ReadFile(d.getResumeFilename())
+	if err != nil {
+		return false, fmt.Errorf("resumer file error: %v", err)
+	}
+
+	// try to unmarshal the resumer file to the current downloader
+	err = json.Unmarshal(resumerFile, &d)
+	if err != nil {
+		return false, fmt.Errorf("resumer file error: %v", err)
+	}
+
+	// Is there a conflict about whether or not details are to be downloaded
+	if d.NoDetails != noDetails {
+		err = fmt.Errorf("this file was begun with --no-details=%v; continuing with --no-details=%v will break the file", d.NoDetails, noDetails)
+		return false, err
+	}
+
+	// So far, so good, but..
+	// Are we in targets mode? if so, check if the previous targets filepath matches the new one
+	// We need to ensure consistency, and that we're correctly following the line numbers of the same file
+	if d.isInTargetsMode() {
+		// did the user run the same command before but without --targets=File ?
+		if d.TargetsFilename == "" {
+			msg := "you are trying to resume a download that had no targets specified before\n"
+			msg += "you need to explicitly pass '--no-resume' flag to start a new download"
+			return false, fmt.Errorf(msg)
+		}
+
+		// did the user change the targets filename ?
+		if d.currentTargetsFilename != d.TargetsFilename {
+			msg := "this download was previously started with a different targets file.\n"
+			msg += "previous target file: " + d.TargetsFilename + "\n"
+			msg += "current target file: " + d.currentTargetsFilename + "\n"
+			msg += "to ensure the resume from the previous line number, you need to specify the previous file as is"
+			msg += " or pass a 'no-resume' flag to start anew"
+			err = fmt.Errorf(msg)
+			return false, err
+		}
+
+		// even if the filename is the same, calculate MD5 hash to ensure the content of the file did not change
+		fileMD5, err := getFileMD5Hash(d.currentTargetsFilename)
+		if err != nil {
+			return false, err
+		}
+
+		if fileMD5 != d.TargetsFileMD5 {
+			err = fmt.Errorf("targets file content has been altered, abording an inconsistent resume")
+			return false, err
+		}
+
+	} else {
+		if d.TargetsFilename != "" {
+			msg := "you are trying to resume a download that had targets file specified before\n"
+			msg += "you need to explicitly pass '--no-resume' flag to start a new download"
+			return false, fmt.Errorf(msg)
+		}
+	}
+
+	return true, nil
+}
+
+func (d *Downloader) isDone() bool {
+	return d.CurrentTarget.DoneElements >= d.CurrentTarget.TotalElements
+}
+
+func (d *Downloader) processTargetsFile() error {
+	ids, err := ProcessTargetFile(d.currentTargetsFilename)
+	if err != nil {
+		return err
+	}
+	d.ids = ids
+	return nil
+}
+
+// isInTargetsMode check if we're passing targets=FILEPATH|Self
+func (d *Downloader) isInTargetsMode() bool {
+	return d.currentTargetsFilename != ""
+}
+
+func (d *Downloader) calculateTotalElements() error {
+	// is it already calculated/unmarshaled?
+	if d.TotalElements > 0 {
+		return nil
+	}
+
+	if d.isInTargetsMode() {
+		// make sure we already processed the file before calculated total elements.
+		if len(d.ids) == 0 {
+			if err := d.processTargetsFile(); err != nil {
+				return err
+			}
+		}
+		d.elements = make(map[uint64]uint64, len(d.ids))
+
+		for _, id := range d.ids {
+			client.SetTargetPageFilter(id)
+			total, err := client.GetTotalElements()
+			if err != nil {
+				return err
+			}
+			d.elements[id] = total
+			fmt.Println(client.GetFullQueryURL(true))
+			fmt.Println(total)
+			d.TotalElements += total
+			fmt.Println(d.TotalElements)
+		}
+	} else {
+		total, err := client.GetTotalElements()
+		if err != nil {
+			return err
+		}
+		d.TotalElements = total
+		d.CurrentTarget.TotalElements = total
+	}
+
+	return nil
 }
 
 // Initialize assign parsed flags or params to the local package variables
 func Initialize(username string, password string, crawl uint64, mode string,
-	noDetails bool, chunkNumber uint64, chunkSize uint64, fOutput string,
-	filter string, fNoResume bool, order string) error {
+	noDetails bool, chunkNumber uint64, chunkSize uint64, output string,
+	filter string, noResume bool, order string, targets string) error {
 
-	output = fOutput
-	noResume = fNoResume
-
+	// init client
 	client = AudistoAPIClient{
 		Username: strings.TrimSpace(username),
 		Password: strings.TrimSpace(password),
@@ -61,95 +223,48 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 	client.SetChunkSize(chunkSize)
 
+	// does our client setup look good?
 	if err := client.IsValid(); err != nil {
 		return err
 	}
 
-	// stdout or output file ?
-	if output == "" {
-		outputWriter = bufio.NewWriter(os.Stdout)
+	// init downloader
+	downloader = new(output, noResume, targets)
 
-		var err error
-
-		downloader = Downloader{}
-
-		downloader.TotalElements, err = client.GetTotalElements()
+	// can we resume a previous download?
+	isResumable, err := downloader.tryResume(noDetails)
+	if !isResumable {
+		// is it because of an error ? if so, abort
 		if err != nil {
 			return err
 		}
 
-		downloader.OutputFilename = output
-		downloader.NoDetails = noDetails
-	} else {
+		// no error, start a new download
+		fmt.Println("No download to resume; starting a new...")
 
-		errOutput, errResumer := fExists(output), fExists(output+resumerSuffix)
-		startAnew := errOutput != nil && errResumer != nil
-
-		// if don't resume, create new set
-		if noResume || startAnew {
-
-			if startAnew && !noResume {
-				fmt.Println("No download to resume; starting a new...")
-			}
-
-			var err error
-
-			downloader = Downloader{}
-
-			downloader.TotalElements, err = client.GetTotalElements()
-			if err != nil {
-				return err
-			}
-			downloader.OutputFilename = output
-			downloader.NoDetails = noDetails
-
-			err = downloader.PersistConfig()
-			if err != nil {
-				panic(err)
-			}
-
-			// create new outputFile
-			newFile, err := os.Create(output)
-			if err != nil {
-				panic(err)
-			}
-			outputWriter = bufio.NewWriter(newFile)
-		} else {
-			// if resume, check if output file exists
-			if errOutput != nil {
-				return fmt.Errorf("cannot resume; %q file does not exist: use --no-resume to create new", output)
-			}
-			// if resume, check if resume file exists
-			if errResumer != nil {
-				return fmt.Errorf("cannot resume; resumer file %v does not exist", output+resumerSuffix)
-			}
-
-			resumerFile, err := ioutil.ReadFile(output + resumerSuffix)
-			if err != nil {
-				panic(fmt.Sprintf("Resumer file error: %v\n", err))
-			}
-			err = json.Unmarshal(resumerFile, &downloader)
-			if err != nil {
-				panic(fmt.Sprintf("Resumer file error: %v\n", err))
-			}
-
-			// open outputFile
-			existingFile, err := os.OpenFile(output, os.O_WRONLY|os.O_APPEND, 0777)
-			if err != nil {
-				panic(err)
-			}
-			outputWriter = bufio.NewWriter(existingFile)
-
-			// read and validate resumer file
-			// read and validate output file
-			// check last id of the last write batch
-
-			if downloader.NoDetails != noDetails {
-				return fmt.Errorf("this file was begun with --no-details=%v; continuing with --no-details=%v will break the file", downloader.NoDetails, noDetails)
-			}
-
+		// create new outputFile
+		newFile, err := os.Create(downloader.OutputFilename)
+		if err != nil {
+			return err
 		}
+		outputWriter = bufio.NewWriter(newFile)
+	} else {
+		// open outputFile
+		existingFile, err := os.OpenFile(downloader.OutputFilename, os.O_WRONLY|os.O_APPEND, 0777)
+		if err != nil {
+			return err
+		}
+		outputWriter = bufio.NewWriter(existingFile)
+	}
 
+	// ensure we have total elemets to download
+	downloader.calculateTotalElements()
+	fmt.Printf("Total Elements: %d\n", downloader.TotalElements)
+
+	// persist what we have for now for later resumes
+	err = downloader.PersistConfig()
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -158,10 +273,10 @@ func Initialize(username string, password string, crawl uint64, mode string,
 // Get assign params and execute the Run() function
 func Get(username string, password string, crawl uint64, mode string,
 	deep bool, chunknumber uint64, chunkSize uint64, output string,
-	filter string, noResume bool, order string) error {
+	filter string, noResume bool, order string, targets string) error {
 
 	err := Initialize(username, password, crawl, mode, deep, chunknumber, chunkSize,
-		output, filter, noResume, order)
+		output, filter, noResume, order, targets)
 
 	if err != nil {
 		return err
@@ -170,44 +285,24 @@ func Get(username string, password string, crawl uint64, mode string,
 	return Run()
 }
 
-// Run runs the program
-func Run() error {
+func (d *Downloader) downloadTarget() error {
 
-	// only show progress bar when downloading to file
-	if output != "" {
-		go progressLoop()
-	}
-
-	debug(client.Username, client.Password, client.CrawlID)
-	debugf("%#v\n", downloader)
-
-MainLoop:
 	for {
-		var startTime time.Time = time.Now()
 		var processedLines int64
 
-		// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
+		if downloader.isDone() {
 
-		progressPerc := downloader.progress()
+			debugf("removing %v", downloader.getResumeFilename())
 
-		debugf("Progress: %.1f %%", progressPerc)
-
-		// check if done
-		if downloader.DoneElements == downloader.TotalElements {
-
-			debug("@@@ COMPLETED 100% @@@")
-			debugf("removing %v", output+resumerSuffix)
-
-			// allow enought time for the progress bar to display
-			// the "complete" message
-			time.Sleep(time.Second)
+			// sleep for few millisecond to allow the progress bar to render 100%
+			time.Sleep(time.Millisecond * 300)
 
 			// when done, remove the resumer file
-			if output != "" {
-				os.Remove(output + resumerSuffix)
+			if downloader.OutputFilename != "" {
+				os.Remove(downloader.getResumeFilename())
 			}
 
-			// exit program
+			// exit
 			return nil
 		}
 
@@ -216,6 +311,7 @@ MainLoop:
 		var statusCode int
 		var skip uint64
 		err := retry(5, 10, func() error {
+			fmt.Println(client.GetFullQueryURL(false))
 			var err error
 			chunk, statusCode, skip, err = downloader.nextChunk()
 			return err
@@ -241,7 +337,7 @@ MainLoop:
 			{
 				// meaning: multiple requests
 				time.Sleep(time.Second * 30)
-				continue MainLoop
+				continue
 			}
 		case statusCode >= 400 && statusCode < 500:
 			{
@@ -284,29 +380,31 @@ MainLoop:
 					}
 				}
 				time.Sleep(time.Second * 30)
-				continue MainLoop
+				continue
 			}
 		case statusCode >= 500 && statusCode < 600:
 			{
 				// meaning: server error
 				time.Sleep(time.Second * 30)
-				continue MainLoop
+				continue
 			}
 		}
 
 		if statusCode != 200 {
 			// just in case it's not an error in the ranges above
-			continue MainLoop
+			continue
 		}
 
 		// iterator for the received chunk
 		scanner := bufio.NewScanner(bytes.NewReader(chunk))
 		debugf("chunk bytes len: %v", len(chunk))
 
-		// write the header of the tsv
-		if downloader.DoneElements == 0 {
-			scanner.Scan()
-			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
+		// write the header of the tsv only if it's the first/only target
+		if d.TargetsFileNextID == 0 {
+			if downloader.DoneElements == 0 {
+				scanner.Scan()
+				outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
+			}
 		}
 
 		// skip lines that we alredy have
@@ -321,6 +419,7 @@ MainLoop:
 			outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 
 			// update the in-memory resumer
+			downloader.CurrentTarget.DoneElements++
 			downloader.DoneElements++
 
 			// update the count of lines processed for this chunk
@@ -332,14 +431,7 @@ MainLoop:
 
 		// save to file the resumer data (to be able to resume later)
 		downloader.PersistConfig()
-		debugf("res.DoneElements = %v", downloader.DoneElements)
-
-		// calculate average speed
-		itTook := time.Since(startTime)
-		temp := big.NewFloat(0).Quo(big.NewFloat(itTook.Seconds()), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(big.NewInt(processedLines)), big.NewFloat(1000)))
-		lastSpeed, _ := temp.Float64()
-		averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHINGFACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHINGFACTOR)), big.NewFloat(averageTimePer1000)))
-		averageTimePer1000, _ = averageSpeed.Float64()
+		debugf("downloader.DoneElements = %v", downloader.CurrentTarget.DoneElements)
 
 		// scanner error
 		if err := scanner.Err(); err != nil {
@@ -350,38 +442,230 @@ MainLoop:
 	}
 }
 
-// retry operation
-func retry(attempts int, sleep int, callback func() error) (err error) {
-	for i := 0; ; i++ {
-		err = callback()
-		if err == nil {
-			return nil
-		}
+// Run runs the program
+func Run() error {
 
-		if i >= (attempts - 1) {
-			break
-		}
-
-		errorCount++
-
-		// pause before retrying
-		time.Sleep(time.Duration(sleep) * time.Second)
-
-		debugf("Something failed, retrying;")
+	// only show progress bar when downloading to file
+	if downloader.OutputFilename != "" {
+		go progressLoop()
 	}
-	return fmt.Errorf("Abandoned after %d attempts, last error: %s", attempts, err)
+
+	debug(client.Username, client.Password, client.CrawlID)
+	debugf("%#v\n", downloader)
+
+	// var target currentTarget
+	var err error
+
+	if downloader.isInTargetsMode() {
+		for downloader.TargetsFileNextID < len(downloader.ids) {
+			pageID := downloader.ids[downloader.TargetsFileNextID]
+			totalElements := downloader.elements[pageID]
+
+			downloader.CurrentTarget.TotalElements = totalElements
+			downloader.CurrentTarget.DoneElements = 0
+
+			client.ResetChunkSize()
+			client.SetTargetPageFilter(pageID)
+			err = downloader.downloadTarget()
+			if err != nil {
+				return err
+			}
+
+			downloader.TargetsFileNextID++
+			// downloader.DoneElements += target.DoneElements
+			downloader.PersistConfig()
+		}
+	} else {
+		downloader.CurrentTarget = currentTarget{
+			TotalElements: downloader.TotalElements,
+			DoneElements:  downloader.DoneElements,
+		}
+		err = downloader.downloadTarget()
+		if err != nil {
+			// downloader.DoneElements = target.DoneElements
+		}
+	}
+
+	return err
+	/*
+		for {
+			var startTime time.Time = time.Now()
+			var processedLines int64
+
+			// res.chunkSize = int64(random(1000, 10000)) // debug; random chunk size
+
+			progressPerc := downloader.progress()
+
+			debugf("Progress: %.1f %%", progressPerc)
+
+			// check if done
+			if downloader.isDone() {
+
+				debugf("removing %v", downloader.getResumeFilename())
+
+				// sleep for few millisecond to allow the progress bar to render 100%
+				time.Sleep(time.Millisecond * 300)
+
+				// when done, remove the resumer file
+				if downloader.OutputFilename != "" {
+					os.Remove(downloader.getResumeFilename())
+				}
+
+				// exit
+				return nil
+			}
+
+			debugf("Calling next chunk")
+			var chunk []byte
+			var statusCode int
+			var skip uint64
+			err := retry(5, 10, func() error {
+				fmt.Println(client.GetFullQueryURL(false))
+				var err error
+				chunk, statusCode, skip, err = downloader.nextChunk()
+				return err
+			})
+
+			if err != nil {
+				debugf("Too many failures while calling next chunk; %v\n", err)
+				return fmt.Errorf("Network error; please check your connection to the internet and resume download")
+			}
+			debugf("Next chunk obtained")
+			debugf("statusCode: %v", statusCode)
+
+			// if statusCode is not 200, up by one the error count
+			// which is displayed in the progress bar
+			if statusCode != 200 {
+				errorCount++
+			}
+
+			// check status code
+
+			switch {
+			case statusCode == 429:
+				{
+					// meaning: multiple requests
+					time.Sleep(time.Second * 30)
+					continue
+				}
+			case statusCode >= 400 && statusCode < 500:
+				{
+					switch statusCode {
+					case 401:
+						{
+							return fmt.Errorf("Wrong credentials")
+						}
+					case 403:
+						{
+							return fmt.Errorf("Access denied. Wrong credentials?")
+						}
+					case 404:
+						{
+							return fmt.Errorf("Not found. Correct crawl ID?")
+						}
+					default:
+						{
+							return fmt.Errorf("\nUnknown error occured (code %v)", statusCode)
+						}
+					}
+				}
+			case statusCode == 504:
+				{
+					timeoutCount++
+					if timeoutCount >= 3 {
+						// throttle
+						if (client.ChunkSize - 1000) > 0 {
+
+							// if chunkSize is 10000, throttle it down to 7000
+							if client.ChunkSize == 10000 {
+								client.ChunkSize -= 3000
+							} else {
+								// otherwise throttle it down by 1000
+								client.ChunkSize -= 1000
+							}
+
+							// reset the timeout count
+							timeoutCount = 0
+						}
+					}
+					time.Sleep(time.Second * 30)
+					continue
+				}
+			case statusCode >= 500 && statusCode < 600:
+				{
+					// meaning: server error
+					time.Sleep(time.Second * 30)
+					continue
+				}
+			}
+
+			if statusCode != 200 {
+				// just in case it's not an error in the ranges above
+				continue
+			}
+
+			// iterator for the received chunk
+			scanner := bufio.NewScanner(bytes.NewReader(chunk))
+			debugf("chunk bytes len: %v", len(chunk))
+
+			// write the header of the tsv
+			if downloader.DoneElements == 0 {
+				scanner.Scan()
+				outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
+			}
+
+			// skip lines that we alredy have
+			for i := uint64(0); i < skip; i++ {
+				scanner.Scan()
+				debugf("skipping this row: \n%s ", scanner.Text())
+			}
+
+			// iterate over the remaining lines
+			for scanner.Scan() {
+				// write lines (to stdout or file)
+				outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
+
+				// update the in-memory resumer
+				downloader.DoneElements++
+
+				// update the count of lines processed for this chunk
+				processedLines++
+			}
+
+			// finalize every write
+			outputWriter.Flush()
+
+			// save to file the resumer data (to be able to resume later)
+			downloader.PersistConfig()
+			debugf("downloader.DoneElements = %v", downloader.DoneElements)
+
+			// calculate average speed
+			itTook := time.Since(startTime)
+			temp := big.NewFloat(0).Quo(big.NewFloat(itTook.Seconds()), big.NewFloat(0).Quo(big.NewFloat(0).SetInt(big.NewInt(processedLines)), big.NewFloat(1000)))
+			lastSpeed, _ := temp.Float64()
+			averageSpeed := big.NewFloat(0).Add(big.NewFloat(0).Mul(big.NewFloat(SMOOTHINGFACTOR), big.NewFloat(lastSpeed)), big.NewFloat(0).Mul(big.NewFloat(0).Sub(big.NewFloat(0).SetInt(big.NewInt(1)), big.NewFloat(SMOOTHINGFACTOR)), big.NewFloat(averageTimePer1000)))
+			averageTimePer1000, _ = averageSpeed.Float64()
+
+			// scanner error
+			if err := scanner.Err(); err != nil {
+				errorCount++
+				return fmt.Errorf("error wrile scanning chunk: %s", err.Error())
+			}
+
+		}
+	*/
 }
 
 // nextChunkNumber calculates the index of the next chunk,
 // and also returns the number of rows to skip.
 // nextChunkNumber is used to calculate the next chunk number after resuming
 // and also to recalculate the chunk number in case of throttling.
-func (r *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
+func (d *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 
 	// if the remaining elements are less than the page size,
 	// request only the remaining elements without having
 	// to discard anything.
-	remainingElements := r.TotalElements - r.DoneElements
+	remainingElements := downloader.CurrentTarget.TotalElements - downloader.CurrentTarget.DoneElements
 	if remainingElements < client.ChunkSize && remainingElements > 0 {
 		// r.chunkSize = remainingElements
 		client.SetChunkSize(remainingElements)
@@ -389,7 +673,7 @@ func (r *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 
 	// if no elements has been downloaded,
 	// request the first chunk without skipping rows
-	if r.DoneElements == 0 {
+	if downloader.CurrentTarget.DoneElements == 0 {
 		nextChunkNumber = 0
 		skipNRows = 0
 		client.SetNextChunkNumber(0)
@@ -402,12 +686,12 @@ func (r *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 		client.SetChunkSize(1)
 	}
 
-	skipNRows = r.DoneElements % client.ChunkSize
-	nextChunkNumberFloat, _ := math.Modf(float64(r.DoneElements) / float64(client.ChunkSize))
+	skipNRows = downloader.CurrentTarget.DoneElements % client.ChunkSize
+	nextChunkNumberFloat, _ := math.Modf(float64(downloader.CurrentTarget.DoneElements) / float64(client.ChunkSize))
 
 	// just in case nextChunkNumber() gets called when all elements are
 	// already downloaded, download chunk and discard all elements
-	if r.DoneElements == r.TotalElements {
+	if downloader.CurrentTarget.DoneElements == downloader.CurrentTarget.TotalElements {
 		skipNRows = 1
 		// r.chunkSize = 1
 		client.SetChunkSize(1)
@@ -419,11 +703,11 @@ func (r *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 }
 
 // nextChunk configures the API request and returns the chunk
-func (r *Downloader) nextChunk() ([]byte, int, uint64, error) {
+func (d *Downloader) nextChunk() ([]byte, int, uint64, error) {
 
-	_, skipNRows := r.nextChunkNumber()
+	_, skipNRows := d.nextChunkNumber()
 
-	if r.DoneElements > 0 {
+	if downloader.CurrentTarget.DoneElements > 0 {
 		skipNRows++
 	}
 
@@ -436,21 +720,33 @@ func (r *Downloader) nextChunk() ([]byte, int, uint64, error) {
 }
 
 // PersistConfig saves the resumer to file
-func (r *Downloader) PersistConfig() error {
+func (d *Downloader) PersistConfig() error {
 	// save config to file only if not printing to stdout
-	if output == "" {
+	if d.OutputFilename == "" {
 		return nil
 	}
 
-	config, err := json.MarshalIndent(r, "", "	")
+	// if in targets mode, marsha the md5 of the targets file as well, to make sure next time we have a consistent resume
+	if d.isInTargetsMode() {
+		//  only recalculate the md5 if it's NOT already calculated
+		if d.currentTargetsMd5Hash == "" {
+			md5, err := getFileMD5Hash(d.currentTargetsFilename)
+			if err != nil {
+				return err
+			}
+
+			d.TargetsFileMD5 = md5
+		}
+
+		// update the targets filename to be the currently passed one
+		d.TargetsFilename = d.currentTargetsFilename
+	}
+
+	config, err := json.MarshalIndent(d, "", "	")
 	if err != nil {
 		return err
 	}
 
 	// create {{output}}.audisto_ file (keeps track of progress etc.)
-	err = ioutil.WriteFile(output+resumerSuffix, config, 0644)
-	if err != nil {
-		return err
-	}
-	return nil
+	return ioutil.WriteFile(d.getResumeFilename(), config, 0644)
 }

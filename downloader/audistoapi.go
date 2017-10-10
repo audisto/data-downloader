@@ -165,7 +165,7 @@ func (api *AudistoAPIClient) GetQueryParams(forTheFirstRequest bool) url.Values 
 
 // GetFullQueryURL returns the full url for interacting with Audisto API, INCLUDING query params
 func (api *AudistoAPIClient) GetFullQueryURL(forTheFirstRequest bool) string {
-	return api.GetQueryParams(forTheFirstRequest).Encode()
+	return fmt.Sprintf("%s?%s", api.GetURLPath(), api.GetQueryParams(forTheFirstRequest).Encode())
 }
 
 // SetChunkSize set AudistoAPI.ChunkSize to a new size
@@ -175,6 +175,10 @@ func (api *AudistoAPIClient) SetChunkSize(size uint64) {
 	} else {
 		api.ChunkSize = size
 	}
+}
+
+func (api *AudistoAPIClient) ResetChunkSize() {
+	api.ChunkSize = DefaultChunkSize
 }
 
 // SetNextChunkNumber set AudistoAPI.ChunkNumber to the next chunk number
@@ -200,6 +204,10 @@ func (api *AudistoAPIClient) SetRequestMethod(method string) error {
 	}
 	api.requestMethod = method
 	return nil
+}
+
+func (api *AudistoAPIClient) SetTargetPageFilter(pageID uint64) {
+	api.Filter = fmt.Sprintf("target_page:%d", pageID)
 }
 
 // GetRequestURL returns a validated instance of url.URL, and an error if the validation fails
