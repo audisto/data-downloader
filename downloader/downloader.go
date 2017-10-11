@@ -298,14 +298,8 @@ func Get(username string, password string, crawl uint64, mode string,
 
 func (d *Downloader) downloadTarget() error {
 
-	for {
+	for !d.isDone() {
 		var processedLines int64
-
-		if d.isDone() {
-			// exit
-			return nil
-		}
-
 		debugf("Calling next chunk")
 		var chunk []byte
 		var statusCode int
@@ -399,9 +393,9 @@ func (d *Downloader) downloadTarget() error {
 		debugf("chunk bytes len: %v", len(chunk))
 
 		// write the header of the tsv only if it's the first/only target
-		if d.TargetsFileNextID == 0 {
+		if d.CurrentTarget.DoneElements == 0 {
+			scanner.Scan()
 			if d.DoneElements == 0 {
-				scanner.Scan()
 				outputWriter.Write(append(scanner.Bytes(), []byte("\n")...))
 			}
 		}
@@ -439,6 +433,7 @@ func (d *Downloader) downloadTarget() error {
 		}
 
 	}
+	return nil
 }
 
 // Run runs the program
