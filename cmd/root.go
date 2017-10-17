@@ -16,6 +16,7 @@ var RootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
 		return performDownload()
 	},
 	Example: getExamples(),
@@ -29,7 +30,7 @@ func init() {
 // use Audisto downloader package to initiate/resume API downloads
 func performDownload() error {
 	return downloader.Get(username, password, crawlID, mode, noDetails,
-		chunkNumber, chunkSize, output, filter, noResume, order)
+		chunkNumber, chunkSize, output, filter, noResume, order, targets)
 }
 
 // example command usage hooked into the CLI usage text.

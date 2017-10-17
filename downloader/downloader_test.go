@@ -92,7 +92,3 @@ func TestNextChunkNumber(t *testing.T) {
 
 }
 */
-func TestUpdateStatus(t *testing.T) {
-	updateStatus("hi there")
-	assert.Equal(t, "hi there", progressStatus, "they should be equal")
-}
