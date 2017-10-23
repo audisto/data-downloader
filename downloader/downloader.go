@@ -296,6 +296,26 @@ func Get(username string, password string, crawl uint64, mode string,
 	return Run()
 }
 
+func (d *Downloader) throttle(timeoutCount *int) {
+	*timeoutCount++
+	if *timeoutCount >= 3 {
+		// throttle
+		if (client.ChunkSize - 1000) > 0 {
+
+			// if chunkSize is 10000, throttle it down to 7000
+			if client.ChunkSize == 10000 {
+				client.ChunkSize -= 3000
+			} else {
+				// otherwise throttle it down by 1000
+				client.ChunkSize -= 1000
+			}
+
+			// reset the timeout count
+			*timeoutCount = 0
+		}
+	}
+}
+
 func (d *Downloader) downloadTarget() error {
 
 	for !d.isDone() {
@@ -355,23 +375,7 @@ func (d *Downloader) downloadTarget() error {
 			}
 		case statusCode == 504:
 			{
-				timeoutCount++
-				if timeoutCount >= 3 {
-					// throttle
-					if (client.ChunkSize - 1000) > 0 {
-
-						// if chunkSize is 10000, throttle it down to 7000
-						if client.ChunkSize == 10000 {
-							client.ChunkSize -= 3000
-						} else {
-							// otherwise throttle it down by 1000
-							client.ChunkSize -= 1000
-						}
-
-						// reset the timeout count
-						timeoutCount = 0
-					}
-				}
+				d.throttle(&timeoutCount)
 				time.Sleep(time.Second * 30)
 				continue
 			}
