@@ -1,6 +1,7 @@
 # Audisto Data-Downloader
 
 [![Build Status](https://travis-ci.org/audisto/data-downloader.svg?branch=master)](https://travis-ci.org/audisto/data-downloader)
+ [![GoDoc](https://godoc.org/github.com/audisto/data-downloader?status.svg)](https://godoc.org/github.com/audisto/data-downloader)
 
 Command line tool for easy data downloads using the Audisto API.
 
