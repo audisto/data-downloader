@@ -5,7 +5,7 @@ dependency:
 	dep ensure
 
 test:
-	go test ./... -v
+	go test $$(go list ./... | grep -v /vendor/)
 
 build:
 	GOOS=linux GOARCH=amd64  go build -o bin/data-downloader-linux-amd64 main.go
