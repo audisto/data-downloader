@@ -32,7 +32,7 @@ func progressLoop() {
 	startTime := time.Now()
 	bar.Format("╢▌▌░╟")
 	for percentage < 100 {
-		if (downloader.TotalElements > 0) {
+		if downloader.TotalElements > 0 {
 			percentage = int((downloader.DoneElements * 100) / downloader.TotalElements)
 		}
 
