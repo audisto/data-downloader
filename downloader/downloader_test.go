@@ -2,12 +2,12 @@ package downloader
 
 import (
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestChs(t *testing.T) {
-	assert.Equal(t, "cccc", chs(4, "c"), "they should be equal")
+	if "cccc" != chs(4, "c") {
+		t.Errorf("They should be equal")
+	}
 }
 
 /* THESE TEST NO LONGER APPLY TO THE CURRENT IMPLEMENTATION, THEY'LL BE REPLACED SOON
