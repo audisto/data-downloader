@@ -1,10 +1,13 @@
 language: go
 go:
-  - 1.8.x
-  - 1.9.x
+  - 1.8
+  - 1.9
   - tip
 install:
   - make dependency
+  # A workaround for 1.8 package install issues
+  - if [ "$TRAVIS_GO_VERSION" = "1.8" ]; then go install; fi
+
 script:
   - make test
 matrix:
