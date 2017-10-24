@@ -1,4 +1,4 @@
-all: dependency test
+all: build
 
 dependency:
 	go get -u github.com/golang/dep/cmd/dep
@@ -8,6 +8,15 @@ test:
 	go test $$(go list ./... | grep -v /vendor/)
 
 build:
-	GOOS=linux GOARCH=amd64  go build -o bin/data-downloader-linux-amd64 main.go
-	GOOS=windows GOARCH=amd64  go build -o bin/data-downloader-windows-amd64.exe main.go
-	GOOS=darwin GOARCH=amd64  go build -o bin/data-downloader-macosx-amd64 main.go
+	go build -o data-downloader main.go
+
+release: release-macosx release-linux release-windows
+	
+release-windows:
+	GOOS=windows GOARCH=amd64 go build -o bin/data-downloader-windows-amd64.exe main.go
+
+release-linux:
+	GOOS=linux GOARCH=amd64 go build -o bin/data-downloader-linux-amd64 main.go
+
+release-macosx:
+	GOOS=windows GOARCH=amd64 go build -o bin/data-downloader-windows-amd64.exe main.go

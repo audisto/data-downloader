@@ -369,7 +369,7 @@ func (d *Downloader) downloadTarget() error {
 					}
 				default:
 					{
-						return fmt.Errorf("\nUnknown error occured (code %v)", statusCode)
+						return fmt.Errorf("\nUnknown error occurred (code %v)", statusCode)
 					}
 				}
 			}
