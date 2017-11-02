@@ -65,9 +65,9 @@ func customFlagsValidation(cmd *cobra.Command) error {
 	// validate targets / mode / filter combinations
 	if targets != "" {
 
-		// do not allow --filter when --targets is being used
-		if filter != "" {
-			return CError("Set either --filter or --targets, but not both")
+		// do not allow --filter when --targets is being used with a FILEPATH
+		if filter != "" && targets != "self" {
+			return CError("Set either --filter or --targets, but not both. Except when --targets=self")
 		}
 
 		// --mode=pages is only allowed when targets=self
