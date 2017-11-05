@@ -51,7 +51,7 @@ func progressLoop() {
 
 	}
 
-	bar.FinishPrint(fmt.Sprintf("\nDwonload Completed in %s", PrettyTime(time.Since(startTime))))
+	bar.FinishPrint(fmt.Sprintf("\nDownload Completed in %s", PrettyTime(time.Since(startTime))))
 	fi, e := os.Stat(downloader.OutputFilename)
 	if e == nil {
 		filesize := uint64(fi.Size())

@@ -31,6 +31,14 @@ Start a new download or resume a download with all details:
 $ ./data-downloader --username="jGSrryHrxtVkxYaONn" --password="UECooHbhYFNBLiIp" --crawl=123456 --output="myCrawl.tsv"
 ```
 
+#### Debug / Verbose mode
+
+You can make the tool verbose about what is exactly performing, and what requests are being sent to Audisto API by setting `DD_DEBUG` (short for data-downloader debug) environment variable to `1` or `true` in your current terminal session.
+
+```
+DD_DEBUG=true data-downloader [flags]
+```
+
 ## Installation
 
 You may download compiled executables from the [releases section](https://github.com/audisto/data-downloader/releases).

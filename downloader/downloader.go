@@ -27,6 +27,11 @@ var (
 	outputWriter *bufio.Writer
 )
 
+func init() {
+	// check for debug mode once, on package init.
+	debugging = IsInDebugMode()
+}
+
 // Downloader initiate or resume a persisted downloading process info using AudistoAPIClient
 // This also follows and increments chunk number, considering total elements to be downloaded
 type Downloader struct {
@@ -494,7 +499,7 @@ func (d *Downloader) Run() error {
 	var err error
 
 	// check if we're in targets mode. If so, we'll need to iterate over each target
-	// and download it seperately. Update `TargetsFileNextID` to keep track of the overall progress.
+	// and download it separately. Update `TargetsFileNextID` to keep track of the overall progress.
 
 	// if targets mode is being set to 'self', we need first to download the file containing the links
 	// using the pages API then extract link IDs from it, and query the links API for each ID
