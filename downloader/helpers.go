@@ -35,6 +35,14 @@ func IsInDebugMode() bool {
 	return false
 }
 
+// DownloadCompleted a helper function to check if a download for a given output filename has been completed.
+// a download is "considered" completed when:
+// the output filepath exists + its resume file does not exist
+// we're "considering" and not 100% sure since we lack the meta-info resume file.
+func DownloadCompleted(outputFilename, resumeFilename string) bool {
+	return fExists(resumeFilename) != nil && fExists(outputFilename) == nil
+}
+
 // ProcessTargetFile extract links IDs from a given file
 func ProcessTargetFile(filePath string) (ids []uint64, err error) {
 

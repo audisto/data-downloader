@@ -50,10 +50,10 @@ Install Go:
 
 Install the Go runtime by downloading the latest release from here: https://golang.org/dl/
 
-Download:
+Clone the repository:
 
 ```shell
-$ go get -u github.com/audisto/data-downloader
+$ git clone github.com/audisto/data-downloader
 ```
 
 Compile:

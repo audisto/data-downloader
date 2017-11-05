@@ -17,6 +17,9 @@ const (
 	// SMOOTHINGFACTOR -
 	SMOOTHINGFACTOR = 0.005
 	resumerSuffix   = ".audisto_"
+
+	// SelfTargetSuffix used when --targets=self, the output filename will be appended this suffix
+	SelfTargetSuffix = "_links"
 )
 
 var debugging = false // if true, debug messages will be shown
@@ -45,6 +48,9 @@ type Downloader struct {
 	CurrentTarget             currentTarget `json:"currentTarget"`
 	PagesSelfTargetsCompleted bool          `json:"pagesSelfTargetsCompleted"`
 
+	// Output filename can be change when the downloaded has more than one stage
+	// we keep the orginal filename here to be used in suffix/resume operations and checks
+	origOutputFilename     string
 	noResume               bool
 	currentTargetsFilename string
 	currentTargetsMd5Hash  string
@@ -62,14 +68,46 @@ type currentTarget struct {
 func new(outputFilename string, noResume bool, targets string) (d Downloader) {
 	return Downloader{
 		OutputFilename:         strings.TrimSpace(outputFilename),
+		origOutputFilename:     strings.TrimSpace(outputFilename),
 		noResume:               noResume,
 		currentTargetsFilename: strings.TrimSpace(targets),
 	}
 }
 
-// getResumeFilename construct the complete file name of the resume file
+// getResumeFilename construct the complete file path of the resume file.
+// the resume filename is usually the output filename + the resume perfix
+// however, --targets=self is a bit tricky and needs a special handling:
+// when --targets=self AND the Pages API files is ALREADY downloaded, we auto-switch to:
+// output filaname + SelfTargetSuffix + resumerSuffix
 func (d *Downloader) getResumeFilename() string {
-	return d.OutputFilename + resumerSuffix
+	defaultPrefixFilename := d.origOutputFilename + resumerSuffix
+	if d.isInTargetsMode() {
+		// only --targets=self needs special handling
+		if d.currentTargetsFilename == "self" {
+			// check if Pages API file has FULLY been downloaded
+			// FULLY means: the file exists and NO resume file for it
+			// or simply PagesSelfTargetsCompleted is marked as true (the case of uninterrupted download)
+
+			// if PagesSelfTargetsCompleted is true no need to check files presence.
+			if d.PagesSelfTargetsCompleted {
+				return d.getSelfOutputFilename() + resumerSuffix
+			}
+
+			// in case of resume, PagesSelfTargetsCompleted might be marked as false but
+			// the Pages file IS downloaded.
+			if DownloadCompleted(d.origOutputFilename, defaultPrefixFilename) {
+				// return the new prefix
+				return d.getSelfOutputFilename() + resumerSuffix
+			}
+		}
+	}
+	return defaultPrefixFilename
+}
+
+func (d *Downloader) getSelfOutputFilename() string {
+	// use origOutputFilename instead OutputFilename
+	// to make sure we don't get the suffix appended more than once
+	return d.origOutputFilename + SelfTargetSuffix
 }
 
 // tryResume check to see if the current download can be a resume of a previous one
@@ -80,14 +118,15 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 		return false, nil
 	}
 
-	// maintain the output filename before unmarshaling
-	origOutputFilename := d.OutputFilename
 	resumeFileExists, outputFileExists := fExists(d.getResumeFilename()), fExists(d.OutputFilename)
 
 	// check if we already have a complete download before?
-	noNeedForResume := resumeFileExists != nil && outputFileExists == nil
-	if noNeedForResume {
-		err = fmt.Errorf("%q file seems already downloaded: use --no-resume to create new", d.OutputFilename)
+	if DownloadCompleted(d.OutputFilename, d.getResumeFilename()) {
+		if d.currentTargetsFilename == "self" {
+			err = fmt.Errorf("%q file and its targets links file seem already downloaded: use --no-resume to create a new", d.OutputFilename)
+		} else {
+			err = fmt.Errorf("%q file seems already downloaded: use --no-resume to create new", d.OutputFilename)
+		}
 		return false, err
 	}
 
@@ -160,9 +199,9 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 			// check if the download from Pages API stage has been completed.
 			if d.PagesSelfTargetsCompleted {
 				// if so, make sure we have a consistent resume
-				// the previously persisted targetsFileName should be equal to OutputFilename + "_links"
-				targetsFilename := origOutputFilename + "_links"
-				if targetsFilename != d.TargetsFilename {
+				// the previously persisted targetsFileName should be equal to OutputFilename + SelfTargetSuffix
+				fmt.Println(d.getSelfOutputFilename())
+				if d.origOutputFilename != d.TargetsFilename {
 					err = fmt.Errorf("resume meta info has been altered, abording an inconsistent resume")
 					return false, err
 				}
@@ -547,23 +586,29 @@ func (d *Downloader) Run() error {
 					return err
 				}
 				// Once done:
+				// - delete this stage's resumer file
 				// - Mark the stage as completed,
 				// - Switch the targets file from "self" to the newly downloaded filepath
-				// - Update the output filepath to the downloaded filepath + "_links"
-				// - Persist those in config for resumes.
+				// - Update the output filepath to the downloaded filepath + SelfTargetSuffix
+				// - Persist those in config for resumes, whithin the resumer file of the new filepath (+ SelfTargetSuffix)
 				// - switch client mode from Pages to Links
 				// - clear filters before using the Links API
-				// - reset elements calculation
+				// - reset elements calculation and chunk size
+
+				d.deleteResumerFile()
+				// print a informative message about the next stage
+				fmt.Println("\nFile downloaded using the Pages API.\nDownloading links...")
 				d.PagesSelfTargetsCompleted = true
 				d.TargetsFilename = d.OutputFilename
 				d.currentTargetsFilename = d.OutputFilename
-				d.OutputFilename = d.OutputFilename + "_links"
+				d.OutputFilename = d.getSelfOutputFilename()
 				d.TotalElements = 0
 				d.DoneElements = 0
 				// reset elements calculation for the new progress report,
 				// and since we're going to recalculate the elements for the next stage
 				d.CurrentTarget.TotalElements = 0
 				d.CurrentTarget.DoneElements = 0
+				client.ResetChunkSize()
 				d.PersistConfig()
 
 				// MAKE SURE filters are cleared once the download using the Pages API is completed
@@ -586,21 +631,12 @@ func (d *Downloader) Run() error {
 		}
 	}
 
-	// when done, remove the resumer file
+	// When done, sleep for few millisecond to allow the progress bar to render 100%.
 
-	// we cannot say we're done if currentTargetsFilename has not been updated to an actual path (not "self").
-	// this is just an extra safety check in case the user initiated a resume with inconsistent flags
-	// or an altered meta-info within the resume file.
+	// Remove the resumer file
+	time.Sleep(time.Millisecond * 300)
 
-	if d.OutputFilename != "" && d.currentTargetsFilename != "self" {
-		debugf("removing %v", d.getResumeFilename())
-		os.Remove(d.getResumeFilename())
-
-		// sleep for few millisecond to allow the progress bar to render 100%
-		time.Sleep(time.Millisecond * 300)
-	}
-
-	return err
+	return d.deleteResumerFile()
 }
 
 // nextChunkNumber calculates the index of the next chunk,
@@ -697,4 +733,12 @@ func (d *Downloader) PersistConfig() error {
 
 	// create {{output}}.audisto_ file (keeps track of progress etc.)
 	return ioutil.WriteFile(d.getResumeFilename(), config, 0644)
+}
+
+func (d *Downloader) deleteResumerFile() error {
+	if d.OutputFilename != "" {
+		debugf("removing %v", d.getResumeFilename())
+		return os.Remove(d.getResumeFilename())
+	}
+	return nil
 }
