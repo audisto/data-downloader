@@ -1,6 +1,10 @@
 # Audisto Data-Downloader
 
-Command line tool for easy data downloads using the Audisto API.
+[![Build Status](https://travis-ci.org/audisto/data-downloader.svg?branch=master)](https://travis-ci.org/audisto/data-downloader)
+ [![GoDoc](https://godoc.org/github.com/audisto/data-downloader?status.svg)](https://godoc.org/github.com/audisto/data-downloader)
+ [![Go Report Card](https://goreportcard.com/badge/github.com/audisto/data-downloader)](https://goreportcard.com/report/github.com/audisto/data-downloader)
+
+A command line tool for easy data downloads using the [Audisto](https://audisto.com/) API.
 
 ## Usage
 
@@ -27,6 +31,14 @@ Start a new download or resume a download with all details:
 $ ./data-downloader --username="jGSrryHrxtVkxYaONn" --password="UECooHbhYFNBLiIp" --crawl=123456 --output="myCrawl.tsv"
 ```
 
+#### Debug / Verbose mode
+
+You can make the tool verbose about what is exactly performing, and what requests are being sent to Audisto API by setting `DD_DEBUG` (short for data-downloader debug) environment variable to `1` or `true` in your current terminal session.
+
+```
+DD_DEBUG=true data-downloader [flags]
+```
+
 ## Installation
 
 You may download compiled executables from the [releases section](https://github.com/audisto/data-downloader/releases).
@@ -38,14 +50,14 @@ Install Go:
 
 Install the Go runtime by downloading the latest release from here: https://golang.org/dl/
 
-Download:
+Clone the repository:
 
 ```shell
-$ go get -u github.com/audisto/data-downloader
+$ git clone github.com/audisto/data-downloader
 ```
 
 Compile:
 
 ```shell
-$ go build -o data-downloader main.go
+$ make build
 ```

@@ -47,7 +47,7 @@ const (
 	ConnectionType = "Keep-Alive"
 )
 
-// AudistoAPIClient a struct holding all information requred to construct a URL with query params for Audisto API
+// AudistoAPIClient a struct holding all information required to construct a URL with query params for Audisto API
 type AudistoAPIClient struct {
 
 	// request path / DSN
@@ -328,7 +328,7 @@ func (api *AudistoAPIClient) GetTotalElements() (uint64, error) {
 			default: // unknown errors
 				{
 					if statusCode < 500 {
-						return fmt.Errorf("Unknown error occured (code %v)", statusCode)
+						return fmt.Errorf("Unknown error occurred (code %v)", statusCode)
 					}
 					// server errors, seelp
 					time.Sleep(time.Second * 5)

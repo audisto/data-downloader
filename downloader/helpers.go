@@ -13,6 +13,10 @@ import (
 )
 
 const (
+	// DebugEnvKey debug environment variable
+	DebugEnvKey = "DD_DEBUG"
+
+	// File sizes units for formatting
 	BYTE     = 1.0
 	KILOBYTE = 1024 * BYTE
 	MEGABYTE = 1024 * KILOBYTE
@@ -20,6 +24,26 @@ const (
 	TERABYTE = 1024 * GIGABYTE
 )
 
+// IsInDebugMode checks if the app is running in debug mode
+func IsInDebugMode() bool {
+	debug := strings.ToLower(os.Getenv(DebugEnvKey))
+	for _, activated := range []string{"1", "yes", "y", "true", "t"} {
+		if debug == activated {
+			return true
+		}
+	}
+	return false
+}
+
+// DownloadCompleted a helper function to check if a download for a given output filename has been completed.
+// a download is "considered" completed when:
+// the output filepath exists + its resume file does not exist
+// we're "considering" and not 100% sure since we lack the meta-info resume file.
+func DownloadCompleted(outputFilename, resumeFilename string) bool {
+	return fExists(resumeFilename) != nil && fExists(outputFilename) == nil
+}
+
+// ProcessTargetFile extract links IDs from a given file
 func ProcessTargetFile(filePath string) (ids []uint64, err error) {
 
 	file, err := os.Open(filePath)

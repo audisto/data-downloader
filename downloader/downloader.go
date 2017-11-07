@@ -17,6 +17,9 @@ const (
 	// SMOOTHINGFACTOR -
 	SMOOTHINGFACTOR = 0.005
 	resumerSuffix   = ".audisto_"
+
+	// SelfTargetSuffix used when --targets=self, the output filename will be appended this suffix
+	SelfTargetSuffix = "_links"
 )
 
 var debugging = false // if true, debug messages will be shown
@@ -27,18 +30,27 @@ var (
 	outputWriter *bufio.Writer
 )
 
+func init() {
+	// check for debug mode once, on package init.
+	debugging = IsInDebugMode()
+}
+
 // Downloader initiate or resume a persisted downloading process info using AudistoAPIClient
 // This also follows and increments chunk number, considering total elements to be downloaded
 type Downloader struct {
-	OutputFilename    string        `json:"outputFilename"`
-	TargetsFilename   string        `json:"targetsFilename"`
-	DoneElements      uint64        `json:"doneElements"`
-	TotalElements     uint64        `json:"totalElements"`
-	NoDetails         bool          `json:"noDetails"`
-	TargetsFileMD5    string        `json:"targetsFileMD5"`
-	TargetsFileNextID int           `json:"targetsFileNextID"`
-	CurrentTarget     currentTarget `json:"currentTarget"`
+	OutputFilename            string        `json:"outputFilename"`
+	TargetsFilename           string        `json:"targetsFilename"`
+	DoneElements              uint64        `json:"doneElements"`
+	TotalElements             uint64        `json:"totalElements"`
+	NoDetails                 bool          `json:"noDetails"`
+	TargetsFileMD5            string        `json:"targetsFileMD5"`
+	TargetsFileNextID         int           `json:"targetsFileNextID"`
+	CurrentTarget             currentTarget `json:"currentTarget"`
+	PagesSelfTargetsCompleted bool          `json:"pagesSelfTargetsCompleted"`
 
+	// Output filename can be change when the downloaded has more than one stage
+	// we keep the orginal filename here to be used in suffix/resume operations and checks
+	origOutputFilename     string
 	noResume               bool
 	currentTargetsFilename string
 	currentTargetsMd5Hash  string
@@ -56,14 +68,46 @@ type currentTarget struct {
 func new(outputFilename string, noResume bool, targets string) (d Downloader) {
 	return Downloader{
 		OutputFilename:         strings.TrimSpace(outputFilename),
+		origOutputFilename:     strings.TrimSpace(outputFilename),
 		noResume:               noResume,
 		currentTargetsFilename: strings.TrimSpace(targets),
 	}
 }
 
-// getResumeFilename construct the complete file name of the resume file
+// getResumeFilename construct the complete file path of the resume file.
+// the resume filename is usually the output filename + the resume perfix
+// however, --targets=self is a bit tricky and needs a special handling:
+// when --targets=self AND the Pages API files is ALREADY downloaded, we auto-switch to:
+// output filaname + SelfTargetSuffix + resumerSuffix
 func (d *Downloader) getResumeFilename() string {
-	return d.OutputFilename + resumerSuffix
+	defaultPrefixFilename := d.origOutputFilename + resumerSuffix
+	if d.isInTargetsMode() {
+		// only --targets=self needs special handling
+		if d.currentTargetsFilename == "self" {
+			// check if Pages API file has FULLY been downloaded
+			// FULLY means: the file exists and NO resume file for it
+			// or simply PagesSelfTargetsCompleted is marked as true (the case of uninterrupted download)
+
+			// if PagesSelfTargetsCompleted is true no need to check files presence.
+			if d.PagesSelfTargetsCompleted {
+				return d.getSelfOutputFilename() + resumerSuffix
+			}
+
+			// in case of resume, PagesSelfTargetsCompleted might be marked as false but
+			// the Pages file IS downloaded.
+			if DownloadCompleted(d.origOutputFilename, defaultPrefixFilename) {
+				// return the new prefix
+				return d.getSelfOutputFilename() + resumerSuffix
+			}
+		}
+	}
+	return defaultPrefixFilename
+}
+
+func (d *Downloader) getSelfOutputFilename() string {
+	// use origOutputFilename instead OutputFilename
+	// to make sure we don't get the suffix appended more than once
+	return d.origOutputFilename + SelfTargetSuffix
 }
 
 // tryResume check to see if the current download can be a resume of a previous one
@@ -77,9 +121,12 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 	resumeFileExists, outputFileExists := fExists(d.getResumeFilename()), fExists(d.OutputFilename)
 
 	// check if we already have a complete download before?
-	noNeedForResume := resumeFileExists != nil && outputFileExists == nil
-	if noNeedForResume {
-		err = fmt.Errorf("%q file seems already downloaded: use --no-resume to create new", d.OutputFilename)
+	if DownloadCompleted(d.OutputFilename, d.getResumeFilename()) {
+		if d.currentTargetsFilename == "self" {
+			err = fmt.Errorf("%q file and its targets links file seem already downloaded: use --no-resume to create a new", d.OutputFilename)
+		} else {
+			err = fmt.Errorf("%q file seems already downloaded: use --no-resume to create new", d.OutputFilename)
+		}
 		return false, err
 	}
 
@@ -119,32 +166,67 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 	// We need to ensure consistency, and that we're correctly following the line numbers of the same file
 	if d.isInTargetsMode() {
 		// did the user run the same command before but without --targets=File ?
-		if d.TargetsFilename == "" {
+		if d.TargetsFilename == "" && d.currentTargetsFilename != "self" {
 			msg := "you are trying to resume a download that had no targets specified before\n"
 			msg += "you need to explicitly pass '--no-resume' flag to start a new download"
 			return false, fmt.Errorf(msg)
 		}
 
-		// did the user change the targets filename ?
-		if d.currentTargetsFilename != d.TargetsFilename {
-			msg := "this download was previously started with a different targets file.\n"
-			msg += "previous target file: " + d.TargetsFilename + "\n"
-			msg += "current target file: " + d.currentTargetsFilename + "\n"
-			msg += "to ensure the resume from the previous line number, you need to specify the previous file as is"
-			msg += " or pass a 'no-resume' flag to start anew"
-			err = fmt.Errorf(msg)
-			return false, err
-		}
+		// In case targets is different than 'self'
+		if d.currentTargetsFilename != "self" {
+			// did the user change the targets filename ?
+			if d.currentTargetsFilename != d.TargetsFilename {
+				msg := "this download was previously started with a different targets file.\n"
+				msg += "previous target file: " + d.TargetsFilename + "\n"
+				msg += "current target file: " + d.currentTargetsFilename + "\n"
+				msg += "to ensure the resume from the previous line number, you need to specify the previous file as is"
+				msg += " or pass a 'no-resume' flag to start anew"
+				err = fmt.Errorf(msg)
+				return false, err
+			}
 
-		// even if the filename is the same, calculate MD5 hash to ensure the content of the file did not change
-		fileMD5, err := getFileMD5Hash(d.currentTargetsFilename)
-		if err != nil {
-			return false, err
-		}
+			// even if the filename is the same, calculate MD5 hash to ensure the content of the file did not change
+			fileMD5, err := getFileMD5Hash(d.currentTargetsFilename)
+			if err != nil {
+				return false, err
+			}
 
-		if fileMD5 != d.TargetsFileMD5 {
-			err = fmt.Errorf("targets file content has been altered, abording an inconsistent resume")
-			return false, err
+			if fileMD5 != d.TargetsFileMD5 {
+				err = fmt.Errorf("targets file content has been altered, abording an inconsistent resume")
+				return false, err
+			}
+		} else { // In case it IS "self" mode
+			// check if the download from Pages API stage has been completed.
+			if d.PagesSelfTargetsCompleted {
+				// if so, make sure we have a consistent resume
+				// the previously persisted targetsFileName should be equal to OutputFilename + SelfTargetSuffix
+				fmt.Println(d.getSelfOutputFilename())
+				if d.origOutputFilename != d.TargetsFilename {
+					err = fmt.Errorf("resume meta info has been altered, abording an inconsistent resume")
+					return false, err
+				}
+
+				// update the output filename
+				d.OutputFilename = d.TargetsFilename
+				d.currentTargetsFilename = d.TargetsFilename
+				// clear filters
+				client.Filter = ""
+				// set mode to links
+				client.Mode = "links"
+
+				// calculate MD5 hash to ensure the content of the file did not change
+				fileMD5, err := getFileMD5Hash(d.currentTargetsFilename)
+				if err != nil {
+					return false, err
+				}
+
+				if fileMD5 != d.TargetsFileMD5 {
+					msg := "targets file content has been altered, abording an inconsistent resume.\n"
+					msg += "targets filepath: " + d.TargetsFilename + "\n"
+					err = fmt.Errorf(msg)
+					return false, err
+				}
+			}
 		}
 
 	} else {
@@ -176,9 +258,10 @@ func (d *Downloader) isInTargetsMode() bool {
 	return d.currentTargetsFilename != ""
 }
 
+// calculateTotalElements calculates the total elements to be downloaded.
 func (d *Downloader) calculateTotalElements() error {
 	fmt.Println("Calculating total elements...")
-	if d.isInTargetsMode() {
+	if d.isInTargetsMode() && d.currentTargetsFilename != "self" {
 		// in targets mode, it is important to recalculate TotalElements, since we want
 		// the total of each target for a better and cosistant resume
 		d.TotalElements = 0
@@ -221,7 +304,7 @@ func Initialize(username string, password string, crawl uint64, mode string,
 	noDetails bool, chunkNumber uint64, chunkSize uint64, output string,
 	filter string, noResume bool, order string, targets string) error {
 
-	// init client
+	// init Audisto client to be used to interact with Audisto Rest API
 	client = AudistoAPIClient{
 		Username: strings.TrimSpace(username),
 		Password: strings.TrimSpace(password),
@@ -244,6 +327,7 @@ func Initialize(username string, password string, crawl uint64, mode string,
 
 	// can we resume a previous download?
 	isResumable, err := downloader.tryResume(noDetails)
+
 	if !isResumable {
 		// is it because of an error ? if so, abort
 		if err != nil {
@@ -268,17 +352,8 @@ func Initialize(username string, password string, crawl uint64, mode string,
 		outputWriter = bufio.NewWriter(existingFile)
 	}
 
-	// ensure we have total elemets to download
-	downloader.calculateTotalElements()
-	fmt.Printf("Total Elements: %d\n", downloader.TotalElements)
-
 	// persist what we have for now for later resumes
-	err = downloader.PersistConfig()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return downloader.PersistConfig()
 }
 
 // Get assign params and execute the Run() function
@@ -288,14 +363,34 @@ func Get(username string, password string, crawl uint64, mode string,
 
 	err := Initialize(username, password, crawl, mode, deep, chunknumber, chunkSize,
 		output, filter, noResume, order, targets)
-
 	if err != nil {
 		return err
 	}
 
-	return Run()
+	return downloader.Run()
 }
 
+func (d *Downloader) throttle(timeoutCount *int) {
+	*timeoutCount++
+	if *timeoutCount >= 3 {
+		// throttle
+		if (client.ChunkSize - 1000) > 0 {
+
+			// if chunkSize is 10000, throttle it down to 7000
+			if client.ChunkSize == 10000 {
+				client.ChunkSize -= 3000
+			} else {
+				// otherwise throttle it down by 1000
+				client.ChunkSize -= 1000
+			}
+
+			// reset the timeout count
+			*timeoutCount = 0
+		}
+	}
+}
+
+// downloadTarget use the AudistoAPIClient to download a given target (link or page)
 func (d *Downloader) downloadTarget() error {
 
 	for !d.isDone() {
@@ -349,29 +444,13 @@ func (d *Downloader) downloadTarget() error {
 					}
 				default:
 					{
-						return fmt.Errorf("\nUnknown error occured (code %v)", statusCode)
+						return fmt.Errorf("\nUnknown error occurred (code %v)", statusCode)
 					}
 				}
 			}
 		case statusCode == 504:
 			{
-				timeoutCount++
-				if timeoutCount >= 3 {
-					// throttle
-					if (client.ChunkSize - 1000) > 0 {
-
-						// if chunkSize is 10000, throttle it down to 7000
-						if client.ChunkSize == 10000 {
-							client.ChunkSize -= 3000
-						} else {
-							// otherwise throttle it down by 1000
-							client.ChunkSize -= 1000
-						}
-
-						// reset the timeout count
-						timeoutCount = 0
-					}
-				}
+				d.throttle(&timeoutCount)
 				time.Sleep(time.Second * 30)
 				continue
 			}
@@ -436,60 +515,128 @@ func (d *Downloader) downloadTarget() error {
 	return nil
 }
 
-// Run runs the program
-func Run() error {
+// Run runs the overall download logic after the initialization and validation steps
+func (d *Downloader) Run() error {
+	// ensure we have total elemets to download
+	d.calculateTotalElements()
+	fmt.Printf("Total Elements: %d\n", downloader.TotalElements)
+
+	// persist calculated total elements to download
+	if err := d.PersistConfig(); err != nil {
+		return err
+	}
 
 	// only show progress bar when downloading to file
-	if downloader.OutputFilename != "" {
+	if d.OutputFilename != "" {
 		go progressLoop()
 	}
 
 	debug(client.Username, client.Password, client.CrawlID)
-	debugf("%#v\n", downloader)
+	debugf("%#v\n", d)
 
 	// var target currentTarget
 	var err error
 
-	if downloader.isInTargetsMode() {
-		for downloader.TargetsFileNextID < len(downloader.ids) {
-			pageID := downloader.ids[downloader.TargetsFileNextID]
-			totalElements := downloader.elements[pageID]
+	// check if we're in targets mode. If so, we'll need to iterate over each target
+	// and download it separately. Update `TargetsFileNextID` to keep track of the overall progress.
 
-			downloader.CurrentTarget.TotalElements = totalElements
-			downloader.CurrentTarget.DoneElements = 0
+	// if targets mode is being set to 'self', we need first to download the file containing the links
+	// using the pages API then extract link IDs from it, and query the links API for each ID
 
-			client.ResetChunkSize()
-			client.SetTargetPageFilter(pageID)
-			err = downloader.downloadTarget()
-			if err != nil {
-				return err
+	// if no targets at all (not in targets mode), we're practically like having one
+	// 'target' to download (the pages or the links file).
+
+	if d.isInTargetsMode() {
+		if d.currentTargetsFilename != "self" {
+			for d.TargetsFileNextID < len(d.ids) {
+				pageID := d.ids[d.TargetsFileNextID]
+				totalElements := d.elements[pageID]
+
+				d.CurrentTarget.TotalElements = totalElements
+				d.CurrentTarget.DoneElements = 0
+
+				client.ResetChunkSize()
+				client.SetTargetPageFilter(pageID)
+				err = d.downloadTarget()
+				if err != nil {
+					return err
+				}
+
+				d.TargetsFileNextID++
+				// d.DoneElements += target.DoneElements
+				d.PersistConfig()
 			}
+		} else { // self mode, needs a special handling.
+			// check if the file containing link IDs has been downloaded using the pages API
+			if !d.PagesSelfTargetsCompleted {
+				// ensure mode is set to pages
+				client.Mode = "pages"
+				if d.DoneElements > 0 {
+					fmt.Println("Resuming file download using the Pages API...")
+				} else {
+					fmt.Println("Downloading the file from Pages API...")
+				}
 
-			downloader.TargetsFileNextID++
-			// downloader.DoneElements += target.DoneElements
-			downloader.PersistConfig()
+				d.CurrentTarget = currentTarget{
+					TotalElements: d.TotalElements,
+					DoneElements:  d.DoneElements,
+				}
+				err = d.downloadTarget()
+				if err != nil {
+					return err
+				}
+				// Once done:
+				// - delete this stage's resumer file
+				// - Mark the stage as completed,
+				// - Switch the targets file from "self" to the newly downloaded filepath
+				// - Update the output filepath to the downloaded filepath + SelfTargetSuffix
+				// - Persist those in config for resumes, whithin the resumer file of the new filepath (+ SelfTargetSuffix)
+				// - switch client mode from Pages to Links
+				// - clear filters before using the Links API
+				// - reset elements calculation and chunk size
+
+				d.deleteResumerFile()
+				// print a informative message about the next stage
+				fmt.Println("\nFile downloaded using the Pages API.\nDownloading links...")
+				d.PagesSelfTargetsCompleted = true
+				d.TargetsFilename = d.OutputFilename
+				d.currentTargetsFilename = d.OutputFilename
+				d.OutputFilename = d.getSelfOutputFilename()
+				d.TotalElements = 0
+				d.DoneElements = 0
+				// reset elements calculation for the new progress report,
+				// and since we're going to recalculate the elements for the next stage
+				d.CurrentTarget.TotalElements = 0
+				d.CurrentTarget.DoneElements = 0
+				client.ResetChunkSize()
+				d.PersistConfig()
+
+				// MAKE SURE filters are cleared once the download using the Pages API is completed
+				// before using the Links API.
+				client.Filter = ""
+				// Switch the client mode from pages to links
+				client.Mode = "links"
+				return d.Run() // recursive call to execute the targets stage
+
+			}
 		}
 	} else {
-		downloader.CurrentTarget = currentTarget{
-			TotalElements: downloader.TotalElements,
-			DoneElements:  downloader.DoneElements,
+		d.CurrentTarget = currentTarget{
+			TotalElements: d.TotalElements,
+			DoneElements:  d.DoneElements,
 		}
-		err = downloader.downloadTarget()
+		err = d.downloadTarget()
 		if err != nil {
-			// downloader.DoneElements = target.DoneElements
+			return err
 		}
 	}
 
-	// when done, remove the resumer file
-	if downloader.OutputFilename != "" {
-		debugf("removing %v", downloader.getResumeFilename())
-		os.Remove(downloader.getResumeFilename())
+	// When done, sleep for few millisecond to allow the progress bar to render 100%.
 
-		// sleep for few millisecond to allow the progress bar to render 100%
-		time.Sleep(time.Millisecond * 300)
-	}
+	// Remove the resumer file
+	time.Sleep(time.Millisecond * 300)
 
-	return err
+	return d.deleteResumerFile()
 }
 
 // nextChunkNumber calculates the index of the next chunk,
@@ -562,8 +709,9 @@ func (d *Downloader) PersistConfig() error {
 		return nil
 	}
 
-	// if in targets mode, marsha the md5 of the targets file as well, to make sure next time we have a consistent resume
-	if d.isInTargetsMode() {
+	// if in targets mode, and targets is set to something different than "self",
+	// persist the md5 of the targets file as well, to make sure next time we have a consistent resume
+	if d.isInTargetsMode() && d.currentTargetsFilename != "self" {
 		//  only recalculate the md5 if it's NOT already calculated
 		if d.currentTargetsMd5Hash == "" {
 			md5, err := getFileMD5Hash(d.currentTargetsFilename)
@@ -585,4 +733,12 @@ func (d *Downloader) PersistConfig() error {
 
 	// create {{output}}.audisto_ file (keeps track of progress etc.)
 	return ioutil.WriteFile(d.getResumeFilename(), config, 0644)
+}
+
+func (d *Downloader) deleteResumerFile() error {
+	if d.OutputFilename != "" {
+		debugf("removing %v", d.getResumeFilename())
+		return os.Remove(d.getResumeFilename())
+	}
+	return nil
 }
