@@ -200,14 +200,13 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 			if d.PagesSelfTargetsCompleted {
 				// if so, make sure we have a consistent resume
 				// the previously persisted targetsFileName should be equal to OutputFilename + SelfTargetSuffix
-				fmt.Println(d.getSelfOutputFilename())
 				if d.origOutputFilename != d.TargetsFilename {
 					err = fmt.Errorf("resume meta info has been altered, abording an inconsistent resume")
 					return false, err
 				}
 
 				// update the output filename
-				d.OutputFilename = d.TargetsFilename
+				d.OutputFilename = d.getSelfOutputFilename()
 				d.currentTargetsFilename = d.TargetsFilename
 				// clear filters
 				client.Filter = ""
@@ -594,13 +593,14 @@ func (d *Downloader) Run() error {
 				// - switch client mode from Pages to Links
 				// - clear filters before using the Links API
 				// - reset elements calculation and chunk size
+				// - create a a new file and update the output writer
 
 				d.deleteResumerFile()
 				// print a informative message about the next stage
 				fmt.Println("\nFile downloaded using the Pages API.\nDownloading links...")
 				d.PagesSelfTargetsCompleted = true
-				d.TargetsFilename = d.OutputFilename
-				d.currentTargetsFilename = d.OutputFilename
+				d.TargetsFilename = d.origOutputFilename
+				d.currentTargetsFilename = d.origOutputFilename
 				d.OutputFilename = d.getSelfOutputFilename()
 				d.TotalElements = 0
 				d.DoneElements = 0
@@ -616,6 +616,12 @@ func (d *Downloader) Run() error {
 				client.Filter = ""
 				// Switch the client mode from pages to links
 				client.Mode = "links"
+				// create the new outputFile
+				newFile, err := os.Create(d.OutputFilename)
+				if err != nil {
+					return err
+				}
+				outputWriter = bufio.NewWriter(newFile)
 				return d.Run() // recursive call to execute the targets stage
 
 			}
