@@ -44,10 +44,27 @@ func requiredFlagsPassed() bool {
 	return username != "" && password != "" && crawlID != 0
 }
 
+// customFlagsParse run a pre-normlization step in order to supoort flags with one dash '-'
+// for backward comptability with previous versions of this tool
+// this customeFalgsParse adds a dash to all flags that are not a shorthand flag
+// (e.g. -p is shorthand for --password, thus it's skipped)
+func customFlagsParse(cmd *cobra.Command, args []string) error {
+	normalizedArgs := []string{}
+	for _, arg := range args {
+		rawFlag := strings.Split(arg, "=")[0]
+		if strings.Count(rawFlag, "-") == 1 {
+			if len(rawFlag) > 2 {
+				arg = "-" + arg
+			}
+		}
+		normalizedArgs = append(normalizedArgs, arg)
+	}
+	return cmd.PersistentFlags().Parse(normalizedArgs)
+}
+
 // Beside parsing flags and auto-type inferring offered by Cobra package
 // we check for our own flag validations/logic as well
 func customFlagsValidation(cmd *cobra.Command) error {
-
 	// make sure required flags are passed
 	if !requiredFlagsPassed() {
 		return CError("--username, --password and --crawl are required")
@@ -110,4 +127,13 @@ func normalizeFlags() {
 	if strings.EqualFold(targets, "self") {
 		targets = "self"
 	}
+}
+
+// example command usage hooked into the CLI usage text.
+func getExamples() string {
+	// Todo: change color
+	return StringYellow(`
+$ data-downloader --username="USERNAME" --password="PASSWORD" --crawl=12345 --output="myCrawl.tsv"
+$ data-downloader -u="USERNAME" -p="PASSWORD" -c=12345 -o="myCrawl.tsv" --no-resume -m=links
+`)
 }

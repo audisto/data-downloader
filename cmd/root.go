@@ -10,20 +10,29 @@ var RootCmd = &cobra.Command{
 	Use:   "data-downloader",
 	Short: "Audisto Data Downloader",
 	Long:  "A simple CLI tool to download data using Audisto API",
+	// disable Cobra flags parsing we'll call our custom parse ourselves
+	// to support the one-dash non-shorthand flags
+	DisableFlagParsing: true,
+	Example:            getExamples(),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Run our custom flags validation
-		err := customFlagsValidation(cmd)
+		// run our custom flags parsing
+		err := customFlagsParse(cmd, args)
+		if err != nil {
+			return err
+		}
+		// Run our custom flags [values] validation
+		err = customFlagsValidation(cmd)
 		if err != nil {
 			return err
 		}
 
+		// all looks good, perform the download
 		return performDownload()
 	},
-	Example: getExamples(),
 }
 
 func init() {
-	// register global flags that apply to the root command
+	// eatly register global flags that apply to the root command
 	registerPersistentFlags(RootCmd)
 }
 
@@ -31,13 +40,4 @@ func init() {
 func performDownload() error {
 	return downloader.Get(username, password, crawlID, mode, noDetails,
 		chunkNumber, chunkSize, output, filter, noResume, order, targets)
-}
-
-// example command usage hooked into the CLI usage text.
-func getExamples() string {
-	// Todo: change color
-	return StringYellow(`
-$ data-downloader --username="USERNAME" --password="PASSWORD" --crawl=12345 --output="myCrawl.tsv"
-$ data-downloader -u="USERNAME" -p="PASSWORD" -c=12345 -o="myCrawl.tsv" --no-resume -m=links
-`)
 }
