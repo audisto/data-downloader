@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	// for debug purposes
+	"path"
 )
 
 const (
@@ -107,7 +108,11 @@ func (d *Downloader) getResumeFilename() string {
 func (d *Downloader) getSelfOutputFilename() string {
 	// use origOutputFilename instead OutputFilename
 	// to make sure we don't get the suffix appended more than once
-	return d.origOutputFilename + SelfTargetSuffix
+	org := d.origOutputFilename
+	ext := path.Ext(org)
+	outfile := org[0:len(org)-len(ext)] + SelfTargetSuffix + ext
+
+	return outfile
 }
 
 // tryResume check to see if the current download can be a resume of a previous one
