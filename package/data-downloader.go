@@ -23,7 +23,7 @@ import (
 	"math/rand" // for debug purposes
 )
 
-const VERSION = "0.3"
+const VERSION = "0.3.1"
 
 var debugging = false // if true, debug messages will be shown
 
@@ -256,10 +256,11 @@ MainLoop:
 		debugf("Calling next chunk")
 		var chunk []byte
 		var statusCode int
+		var chunkStart int64
 		var skip int64
 		err := retry(5, 10, func() error {
 			var err error
-			chunk, statusCode, skip, err = res.nextChunk()
+			chunk, statusCode, chunkStart, skip, err = res.nextChunk()
 			return err
 		})
 
@@ -377,6 +378,12 @@ MainLoop:
 		// finalize every write
 		outputWriter.Flush()
 
+		scannerErr := scanner.Err()
+		if scannerErr == nil {
+			// A chunk was completely fetched. Since a chunk may miss lines, adjust resume counter
+			res.DoneElements = chunkStart + res.chunkSize
+		}
+
 		// save to file the resumer data (to be able to resume later)
 		res.PersistConfig()
 		debugf("res.DoneElements = %v", res.DoneElements)
@@ -390,9 +397,9 @@ MainLoop:
 		averageTimePer1000, _ = averageSpeed.Float64()
 
 		// scanner error
-		if err := scanner.Err(); err != nil {
+		if scannerErr != nil {
 			errorCount += 1
-			fmt.Println("error wrile scanning chunk: ", err)
+			fmt.Println("Error while scanning chunk: ", err)
 			return
 		}
 
@@ -522,9 +529,10 @@ func (r *Resumer) nextChunkNumber() (nextChunkNumber, skipNRows int64) {
 }
 
 // nextChunk configures the API request and returns the chunk
-func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
+func (r *Resumer) nextChunk() ([]byte, int, int64, int64, error) {
 
 	nextChunkNumber, skipNRows := r.nextChunkNumber()
+	chunkStartNumber := nextChunkNumber * r.chunkSize
 
 	if r.DoneElements > 0 {
 		skipNRows += 1
@@ -554,10 +562,10 @@ func (r *Resumer) nextChunk() ([]byte, int, int64, error) {
 
 	body, statusCode, err := r.fetchRawChunk(path, method, headers, queryParameters, bodyParameters)
 	if err != nil {
-		return []byte(""), 0, 0, err
+		return []byte(""), 0, 0, 0, err
 	}
 
-	return body, statusCode, skipNRows, nil
+	return body, statusCode, chunkStartNumber, skipNRows, nil
 }
 
 // fetchRawChunk makes the request to the server for a chunk
