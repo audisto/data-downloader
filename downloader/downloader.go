@@ -402,10 +402,11 @@ func (d *Downloader) downloadTarget() error {
 		debugf("Calling next chunk")
 		var chunk []byte
 		var statusCode int
+		var chunkStart uint64
 		var skip uint64
 		err := retry(5, 10, func() error {
 			var err error
-			chunk, statusCode, skip, err = d.nextChunk()
+			chunk, statusCode, chunkStart, skip, err = d.nextChunk()
 			return err
 		})
 
@@ -505,14 +506,20 @@ func (d *Downloader) downloadTarget() error {
 		// finalize every write
 		outputWriter.Flush()
 
+		scannerErr := scanner.Err()
+		if scannerErr == nil {
+			// A chunk was completely fetched. Since a chunk may miss lines, adjust resume counter
+			d.CurrentTarget.DoneElements = chunkStart + client.ChunkSize
+		}
+
 		// save to file the resumer data (to be able to resume later)
 		d.PersistConfig()
 		debugf("downloader.DoneElements = %v", d.CurrentTarget.DoneElements)
 
 		// scanner error
-		if err := scanner.Err(); err != nil {
+		if scannerErr != nil {
 			errorCount++
-			return fmt.Errorf("error wrile scanning chunk: %s", err.Error())
+			return fmt.Errorf("Error while scanning chunk: %s", err.Error())
 		}
 
 	}
@@ -697,9 +704,10 @@ func (d *Downloader) nextChunkNumber() (nextChunkNumber, skipNRows uint64) {
 }
 
 // nextChunk configures the API request and returns the chunk
-func (d *Downloader) nextChunk() ([]byte, int, uint64, error) {
+func (d *Downloader) nextChunk() ([]byte, int, uint64, uint64, error) {
 
-	_, skipNRows := d.nextChunkNumber()
+	nextChunkNumber, skipNRows := d.nextChunkNumber()
+	chunkStartNumber := nextChunkNumber * client.ChunkSize
 
 	if d.CurrentTarget.DoneElements > 0 {
 		skipNRows++
@@ -707,10 +715,10 @@ func (d *Downloader) nextChunk() ([]byte, int, uint64, error) {
 
 	body, statusCode, err := client.FetchRawChunk(false)
 	if err != nil {
-		return []byte(""), 0, 0, err
+		return []byte(""), 0, 0, 0, err
 	}
 
-	return body, statusCode, skipNRows, nil
+	return body, statusCode, chunkStartNumber, skipNRows, nil
 }
 
 // PersistConfig saves the resumer to file
