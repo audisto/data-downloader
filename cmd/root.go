@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"time"
+
 	"github.com/audisto/data-downloader/downloader"
 	"github.com/spf13/cobra"
 )
@@ -38,6 +40,23 @@ func init() {
 
 // use Audisto downloader package to initiate/resume API downloads
 func performDownload() error {
-	return downloader.Get(username, password, crawlID, mode, noDetails,
+	progressReport := make(chan downloader.StatusReport)
+	download := downloader.New(progressReport)
+
+	err := download.Setup(username, password, crawlID, mode, noDetails,
 		chunkNumber, chunkSize, output, filter, noResume, order, targets)
+
+	if err != nil {
+		return err
+	}
+
+	go RenderProgress(progressReport)
+
+	err = download.Start()
+	if err != nil {
+		return err
+	}
+	// Give the progress bar a small time in order to refresh its rendering
+	time.Sleep(time.Millisecond * 100)
+	return nil
 }

@@ -81,6 +81,24 @@ type chunk struct {
 	} `json:"chunk"`
 }
 
+// NewClient make a new Audisto API Client and checks if it's valid
+func NewClient(username string, password string, crawl uint64, mode string,
+	noDetails bool, chunknumber uint64, chunkSize uint64, filter string,
+	order string) (*AudistoAPIClient, error) {
+	client := &AudistoAPIClient{
+		Username:    strings.TrimSpace(username),
+		Password:    strings.TrimSpace(password),
+		CrawlID:     crawl,
+		Mode:        strings.TrimSpace(mode),
+		Deep:        noDetails != true,
+		Order:       strings.TrimSpace(order),
+		Filter:      strings.TrimSpace(filter),
+		ChunkNumber: chunknumber,
+	}
+	client.SetChunkSize(chunkSize)
+	return client, client.IsValid()
+}
+
 // IsValid check if the struct info look good. This does not do any remote request.
 func (api *AudistoAPIClient) IsValid() error {
 
@@ -240,14 +258,13 @@ func (api *AudistoAPIClient) Do(request *http.Request) (*http.Response, error) {
 // FetchRawChunk makes an http request to the server for a given chunk
 func (api *AudistoAPIClient) FetchRawChunk(forTheFirstRequest bool) ([]byte, int, error) {
 
-	requestURL, err := client.GetRequestURL()
+	requestURL, err := api.GetRequestURL()
 	if err != nil {
 		return []byte(""), 0, err
 	}
 	bodyParameters := url.Values{}
-	requestURL.RawQuery = client.GetQueryParams(forTheFirstRequest).Encode()
+	requestURL.RawQuery = api.GetQueryParams(forTheFirstRequest).Encode()
 
-	debugf("request url: %s", requestURL.String())
 	request, err := http.NewRequest(
 		api.GetRequestMethod(), requestURL.String(),
 		bytes.NewBufferString(bodyParameters.Encode()))
@@ -338,7 +355,7 @@ func (api *AudistoAPIClient) GetTotalElements() (uint64, error) {
 		}
 
 		return nil
-	})
+	}, nil)
 
 	if err != nil {
 		return 0, err
