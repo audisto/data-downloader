@@ -55,9 +55,12 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 		// print the log messages received, BEFORE the progress bar rendering
 		for _, f := range progress.Logs {
 			for key, value := range f {
-				if key == downloader.INFO {
+				switch key {
+				case downloader.INFO:
 					msg += StringBlue(value) + "\n"
-				} else {
+				case downloader.WARNING:
+					msg += StringYellow("WARNING: " + value)
+				default:
 					msg += StringYellow(value) + "\n"
 				}
 			}

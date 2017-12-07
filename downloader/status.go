@@ -17,9 +17,9 @@ var (
 
 	averageTimePer1000 float64 = 1
 
-	// RefreshRate time between to progress updates
+	// RefresInterval time between to progress updates
 	// Export so the caller can fine-tune this
-	RefreshRate = time.Millisecond * 100
+	RefresInterval = time.Millisecond * 100
 )
 
 // StatusReport a struct holding the progress status of the current download
@@ -43,14 +43,18 @@ func (ps *StatusReport) IsDone() bool {
 func reportProgressStatus(downloader *Downloader) {
 	// don't report progress if we don't have a channel to comminicate with in the first place
 	if downloader.status != nil {
+
+		defer downloader.closeStatusChannel()
+
 		for {
 			select {
 			case <-downloader.done:
-				close(downloader.status)
+				// write for the last time
+				downloader.status <- downloader.ProgressReport()
 				return
 			default:
-				time.Sleep(RefreshRate)
 				downloader.status <- downloader.ProgressReport()
+				time.Sleep(RefresInterval)
 			}
 		}
 	}
@@ -81,5 +85,16 @@ func (d *Downloader) ProgressReport() StatusReport {
 		ProgressPercentage: progressF,
 		Logs:               d.logs,
 		OutputFilename:     d.OutputFilename,
+	}
+}
+
+func (d *Downloader) closeStatusChannel() {
+	if d.status != nil {
+		close(d.status)
+		// make the channel nil, so the check d.status != nil becomes meaningful
+		// this is important since we might call d.Start() recursively (in targets mode)
+		// and close the channel won't mark it as nil, and we'd have a runtime error because
+		// we're writing to a closed channel (the 'if' check above will pass).
+		d.status = nil
 	}
 }
