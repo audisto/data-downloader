@@ -32,6 +32,9 @@ type StatusReport struct {
 	ProgressPercentage          float64
 	OutputFilename              string
 	Logs                        []map[LogType]string
+	IsIngTargetMode             bool
+	TotalIDsCount               int
+	CurrentIDOrderNumber        int
 }
 
 // IsDone a helper function to know if the download is considered done.
@@ -64,27 +67,30 @@ func reportProgressStatus(downloader *Downloader) {
 func (d *Downloader) ProgressReport() StatusReport {
 
 	// Calculate Estimated Time of Arival
-	ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(d.TotalElements), big.NewFloat(0).SetUint64(d.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
+	ETAuint64, _ := big.NewFloat(0).Quo(big.NewFloat(0).Quo(big.NewFloat(0).Sub(big.NewFloat(0).SetUint64(d.CurrentTarget.TotalElements), big.NewFloat(0).SetUint64(d.CurrentTarget.DoneElements)), big.NewFloat(1000)), big.NewFloat(averageTimePer1000)).Uint64()
 
 	// Calculate the progress percentage
 	var progressPerc *big.Float = big.NewFloat(0.0)
 	var progressF float64
-	if d.TotalElements > 0 && d.DoneElements > 0 {
-		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(d.TotalElements), big.NewFloat(0).SetUint64(d.DoneElements)))
+	if d.CurrentTarget.TotalElements > 0 && d.CurrentTarget.DoneElements > 0 {
+		progressPerc = big.NewFloat(0).Quo(big.NewFloat(100), big.NewFloat(0).Quo(big.NewFloat(0).SetUint64(d.CurrentTarget.TotalElements), big.NewFloat(0).SetUint64(d.CurrentTarget.DoneElements)))
 		progressF, _ = progressPerc.Float64()
 	}
 
 	return StatusReport{
-		ETA:                time.Duration(ETAuint64) * time.Millisecond * ETAFactor,
-		Mode:               d.client.Mode,
-		ChunkSize:          d.client.ChunkSize,
-		TotalElements:      d.TotalElements,
-		DoneElements:       d.DoneElements,
-		TimeoutsCount:      timeoutCount,
-		ErrorsCount:        errorCount,
-		ProgressPercentage: progressF,
-		Logs:               d.logs,
-		OutputFilename:     d.OutputFilename,
+		ETA:                  time.Duration(ETAuint64) * time.Millisecond * ETAFactor,
+		Mode:                 d.client.Mode,
+		ChunkSize:            d.client.ChunkSize,
+		TotalElements:        d.CurrentTarget.TotalElements,
+		DoneElements:         d.CurrentTarget.DoneElements,
+		TimeoutsCount:        timeoutCount,
+		ErrorsCount:          errorCount,
+		ProgressPercentage:   progressF,
+		Logs:                 d.logs,
+		OutputFilename:       d.OutputFilename,
+		IsIngTargetMode:      d.isInTargetsMode() && d.currentTargetsFilename != "self",
+		CurrentIDOrderNumber: d.TargetsFileNextID,
+		TotalIDsCount:        d.totalIDsCount,
 	}
 }
 

@@ -62,6 +62,7 @@ type Downloader struct {
 	currentTargetsFilename string
 	currentTargetsMd5Hash  string
 	ids                    []uint64
+	totalIDsCount          int
 	elements               map[uint64]uint64 // [pageID] => totalElements
 
 	// Audisto API client
@@ -141,7 +142,7 @@ func (d *Downloader) getSelfOutputFilename() string {
 // tryResume check to see if the current download can be a resume of a previous one
 func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 
-	// Are we outputing to some file?
+	// Are we outputing to some file in the first place?
 	if d.OutputFilename == "" || d.noResume {
 		return false, nil
 	}
@@ -277,6 +278,7 @@ func (d *Downloader) processTargetsFile() error {
 		return err
 	}
 	d.ids = ids
+	d.totalIDsCount = len(ids)
 	return nil
 }
 
@@ -287,44 +289,27 @@ func (d *Downloader) isInTargetsMode() bool {
 
 // calculateTotalElements calculates the total elements to be downloaded.
 func (d *Downloader) calculateTotalElements() error {
-	// fmt.Println("Calculating total elements...")
 	d.appendLog(INFO, "Calculating total elements...")
-	if d.isInTargetsMode() && d.currentTargetsFilename != "self" {
-		// in targets mode, it is important to recalculate TotalElements, since we want
-		// the total of each target for a better and cosistant resume
-		d.TotalElements = 0
-		// make sure we already processed the file before calculated total elements.
-		if len(d.ids) == 0 {
-			if err := d.processTargetsFile(); err != nil {
-				return err
-			}
-		}
-		d.elements = make(map[uint64]uint64, len(d.ids))
 
-		for _, id := range d.ids {
-			d.client.SetTargetPageFilter(id)
-			total, err := d.client.GetTotalElements()
-			if err != nil {
-				return err
-			}
-			d.elements[id] = total
-			d.TotalElements += total
-		}
-	} else {
-		// unlike targets mode, TotalElements calculation can be skipped.
-		// is it already calculated/unmarshaled?
-		if d.TotalElements > 0 {
-			return nil
-		}
-		total, err := d.client.GetTotalElements()
-		if err != nil {
-			return err
-		}
-		d.TotalElements = total
-		d.CurrentTarget.TotalElements = total
+	// is it already calculated/unmarshaled?
+	if d.TotalElements > 0 {
+		return nil
 	}
+	// d.client.SetTargetPageFilter(id)
+	total, err := d.client.GetTotalElements()
+	if err != nil {
+		return err
+	}
+	d.TotalElements = total
+	d.CurrentTarget.TotalElements = total
 
 	return nil
+}
+
+func (d *Downloader) calculateTotalElementsForTargetPage(target uint64) (uint64, error) {
+	// d.appendLog(INFO, fmt.Sprintf("Calculating total elements for target %d", target))
+	d.client.SetTargetPageFilter(target)
+	return d.client.GetTotalElements()
 }
 
 // Setup assign params and execute the Run() function
@@ -357,7 +342,6 @@ func (d *Downloader) Setup(username string, password string, crawl uint64, mode 
 		}
 
 		// no error, start a new download
-		// fmt.Println("No download to resume; starting a new...")
 		d.appendLog(INFO, "No download to resume; starting a new...")
 
 		// create new outputFile
@@ -534,9 +518,17 @@ func (d *Downloader) downloadTarget() error {
 // Start runs the overall download logic after the initialization and validation steps
 func (d *Downloader) Start() error {
 
-	// ensure we have total elemets to download
-	d.calculateTotalElements()
-	d.appendLog(INFO, fmt.Sprintf("Total Elements: %d", d.TotalElements))
+	// ensure we have total elements to download
+	if !d.isInTargetsMode() || d.currentTargetsFilename == "self" {
+		d.calculateTotalElements()
+		d.appendLog(INFO, fmt.Sprintf("Total Elements: %d", d.TotalElements))
+	} else if d.currentTargetsFilename != "self" {
+
+		if err := d.processTargetsFile(); err != nil {
+			return err
+		}
+
+	}
 
 	// Persist calculated total elements to download
 	if err := d.PersistConfig(); err != nil {
@@ -565,9 +557,12 @@ func (d *Downloader) Start() error {
 
 	if d.isInTargetsMode() {
 		if d.currentTargetsFilename != "self" {
-			for d.TargetsFileNextID < len(d.ids) {
+			for d.TargetsFileNextID < d.totalIDsCount {
 				pageID := d.ids[d.TargetsFileNextID]
-				totalElements := d.elements[pageID]
+				totalElements, err := d.calculateTotalElementsForTargetPage(pageID) // d.elements[pageID]
+				if err != nil {
+					return err
+				}
 
 				d.CurrentTarget.TotalElements = totalElements
 				d.CurrentTarget.DoneElements = 0
@@ -590,10 +585,8 @@ func (d *Downloader) Start() error {
 				d.client.Mode = "pages"
 				if d.DoneElements > 0 {
 					d.appendLog(INFO, "Resuming file download using the Pages API...")
-					// fmt.Println("Resuming file download using the Pages API...")
 				} else {
 					d.appendLog(INFO, "Downloading the file from Pages API...")
-					// fmt.Println("Downloading the file from Pages API...")
 				}
 
 				d.CurrentTarget = currentTarget{
@@ -617,7 +610,8 @@ func (d *Downloader) Start() error {
 
 				d.deleteResumerFile()
 				// print a informative message about the next stage
-				fmt.Println("\nFile downloaded using the Pages API.\nDownloading links...")
+				d.appendLog(INFO, "File downloaded using the Pages API. Downloading links...")
+
 				d.PagesSelfTargetsCompleted = true
 				d.TargetsFilename = d.origOutputFilename
 				d.currentTargetsFilename = d.origOutputFilename

@@ -19,6 +19,8 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 	writer := uilive.New()
 	// Make a new progres bar with 100 as its target/percentage
 	bar := pb.New(100)
+	var bar2 *pb.ProgressBar
+
 	// By default, the percentage is 0, to be incremented by the progress report
 	// percentage := 0
 	// Keep track of the time this has been called, so we can know how much time
@@ -26,14 +28,17 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 	startTime := time.Now()
 	// Don't show the built-in counters
 	bar.ShowCounters = false
+
 	// Don't show the built-in time left since we have our own calculation
 	bar.ShowTimeLeft = false
+
 	// Don't automatically update the bar, we'll manually update the bar ourselves
 	// once we receive an element through the StatusReport channel
 	bar.ManualUpdate = true
 
 	// Override the default bar writer, we'd take of the printing using uilive writer
 	bar.Output = nil
+
 	// Suppress any prints as well comming from the pb package
 	bar.NotPrint = true
 
@@ -63,6 +68,27 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 				default:
 					msg += StringYellow(value) + "\n"
 				}
+			}
+		}
+
+		if progress.IsIngTargetMode {
+			if bar2 == nil && progress.TotalIDsCount > 0 {
+				// msg = ""
+				bar2 = pb.New(progress.TotalIDsCount)
+				bar2.ShowCounters = true
+				bar2.ShowTimeLeft = false
+				bar2.ShowPercent = false
+				bar2.ManualUpdate = true
+				bar2.Output = nil
+				bar2.NotPrint = true
+				bar2.Format("╢▌▌░╟")
+			} else if progress.TotalIDsCount > 0 {
+				// build up the second progress bar
+				bar2.Prefix("Current Target ID Number (Overall progress): ")
+				bar2.Set(progress.CurrentIDOrderNumber)
+				bar2.Update() // manually update it
+
+				msg += "\n" + bar2.String() + "\n"
 			}
 		}
 
