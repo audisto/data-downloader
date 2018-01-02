@@ -3,4 +3,5 @@
 *.csv
 .idea
 bin
+data-downloader
 vendor/
