@@ -8,6 +8,12 @@
   version = "v1.5.0"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/gosuri/uilive"
+  packages = ["."]
+  revision = "ac356e6e42cd31fcef8e6aec13ae9ed6fe87713e"
+
+[[projects]]
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
@@ -58,6 +64,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "013e0460e83cbd8fa280802e81e6326d39d871098ab36594f34079ec09e1a72a"
+  inputs-digest = "753486e48731e7cafe6be6bedccecc60b7e2f1f6680f597ef2eecfdcbde0b04c"
   solver-name = "gps-cdcl"
   solver-version = 1

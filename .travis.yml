@@ -1,8 +1,10 @@
+go_import_path: github.com/audisto/data-downloader
 language: go
 go:
   - 1.8
   - 1.9
   - tip
+
 install:
   - make dependency
   # A workaround for 1.8 package install issues
