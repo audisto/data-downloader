@@ -3,6 +3,8 @@ package cmd
 import (
 	"time"
 
+	"github.com/mattn/go-colorable"
+
 	"github.com/audisto/data-downloader/downloader"
 	"github.com/spf13/cobra"
 )
@@ -36,6 +38,8 @@ var RootCmd = &cobra.Command{
 func init() {
 	// eatly register global flags that apply to the root command
 	registerPersistentFlags(RootCmd)
+	// make Cobra output support colors for Windows
+	RootCmd.SetOutput(colorable.NewColorableStderr())
 }
 
 // use Audisto downloader package to initiate/resume API downloads

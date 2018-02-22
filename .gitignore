@@ -4,3 +4,12 @@
 .idea
 bin
 vendor/
+
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+### Visual Studio Code
+.vscode

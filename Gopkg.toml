@@ -27,11 +27,11 @@
 
 [[constraint]]
   name = "github.com/fatih/color"
-  version = "1.5.0"
+  version = "1.6.0"
 
 [[constraint]]
   name = "gopkg.in/cheggaaa/pb.v1"
-  version = "1.0.18"
+  version = "1.0.22"
 
 [[constraint]]
   branch = "master"

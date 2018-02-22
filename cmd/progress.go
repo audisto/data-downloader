@@ -7,8 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/audisto/data-downloader/downloader"
+	"github.com/mattn/go-colorable"
 
+	"github.com/audisto/data-downloader/downloader"
 	"github.com/gosuri/uilive"
 	pb "gopkg.in/cheggaaa/pb.v1"
 )
@@ -110,11 +111,15 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 		msg += bar
 		// write all of the above to uilive writer
 		fmt.Fprintf(writer, msg+"\n")
+		// clear the msg
+		msg = ""
+		// flush the previous writer buffer
+		writer.Flush()
 	}
+
 	// no more progress is being made
 	// reaching this block means the downloader has finished downloading without errors
 	// Print some useful basic download stats
-	writer.Flush() // flush the previous writer buffer
 	finishMessage := "\n\nDownload Completed in " + PrettyTime(time.Since(startTime))
 
 	fi, e := os.Stat(lastProgress.OutputFilename)
@@ -123,6 +128,7 @@ func RenderProgress(progressReport <-chan downloader.StatusReport) {
 		filesizeStr := PrettyByteSize(filesize)
 		finishMessage += fmt.Sprintf("\nGot %s Saved to: %s", filesizeStr, lastProgress.OutputFilename)
 	}
-	msg += StringGreen(finishMessage)
-	fmt.Fprintf(writer, msg+"\n")
+
+	msg += fStringGreen(finishMessage)
+	fmt.Fprintf(colorable.NewColorableStdout(), msg+"\n")
 }

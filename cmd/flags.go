@@ -132,7 +132,7 @@ func normalizeFlags() {
 // example command usage hooked into the CLI usage text.
 func getExamples() string {
 	// Todo: change color
-	return StringYellow(`
+	return fStringYellow(`
 $ data-downloader --username="USERNAME" --password="PASSWORD" --crawl=12345 --output="myCrawl.tsv"
 $ data-downloader -u="USERNAME" -p="PASSWORD" -c=12345 -o="myCrawl.tsv" --no-resume -m=links
 `)

@@ -4,8 +4,8 @@
 [[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
-  revision = "570b54cabe6b8eb0bc2dfce68d964677d63b5260"
-  version = "v1.5.0"
+  revision = "507f6050b8568533fb3f5504de8e5205fa62a114"
+  version = "v1.6.0"
 
 [[projects]]
   branch = "master"
@@ -41,7 +41,7 @@
   branch = "master"
   name = "github.com/spf13/cobra"
   packages = ["."]
-  revision = "b78744579491c1ceeaaa3b40205e56b0591b93a3"
+  revision = "a1e4933ab784095895e33dbe9f001ba10cfe2060"
 
 [[projects]]
   name = "github.com/spf13/pflag"
@@ -53,17 +53,17 @@
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "429f518978ab01db8bb6f44b66785088e7fba58b"
+  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
 
 [[projects]]
   name = "gopkg.in/cheggaaa/pb.v1"
   packages = ["."]
-  revision = "657164d0228d6bebe316fdf725c69f131a50fb10"
-  version = "v1.0.18"
+  revision = "72b964305fba1230d3d818711138195f22b9ceea"
+  version = "v1.0.22"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "753486e48731e7cafe6be6bedccecc60b7e2f1f6680f597ef2eecfdcbde0b04c"
+  inputs-digest = "c5249580ed70c65096270666f1e39b0b69c39fa285efdd705003b3e00e4b4bde"
   solver-name = "gps-cdcl"
   solver-version = 1
