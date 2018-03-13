@@ -10,6 +10,7 @@ vendor/
 *.dll
 *.so
 *.dylib
+data-downloader
 
 ### Visual Studio Code
 .vscode

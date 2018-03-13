@@ -7,6 +7,10 @@ dependency:
 test:
 	go test $$(go list ./... | grep -v /vendor/)
 
+embed-static:
+	@echo "embedding static files"
+	statik -src=$$PWD/web/static -dest=$$PWD/web -f
+
 build:
 	go build -o data-downloader main.go
 
