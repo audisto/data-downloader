@@ -12,6 +12,6 @@ func homeHandler(c *gin.Context) {
 }
 
 func loginHandler(c *gin.Context) {
-	// c.HTML(http.StatusOK, "login.html", nil)
-	c.String(http.StatusOK, "login")
+	c.HTML(http.StatusOK, "login.html", nil)
+	// c.String(http.StatusOK, "login")
 }
