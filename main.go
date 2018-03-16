@@ -1,3 +1,5 @@
+//go:generate statik -src=./web/static -dest=./web -f
+
 package main
 
 import (
