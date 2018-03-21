@@ -1,0 +1,48 @@
+{{define "header"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="ie=edge">
+	<link rel="stylesheet" href="/static/css/bulma.min.css">
+	<link rel="stylesheet" href="/static/css/fontawesome-all.min.css">
+	<title>Audisto Data Downloader</title>
+</head>
+<body>
+	<section class="hero is-light">
+		<div class="hero-body" style="padding-top:1%; padding-bottom: 2%">
+			<div class="container">
+
+				<nav class="level">
+					<!-- Left side -->
+					<div class="level-left">
+						<div class="level-item has-text">
+							<div>
+								<p class="heading">
+									<img src="/static/images/audisto-logo.svg" alt="Audisto Logo" width="152">
+								</p>
+								<p class="has-text-grey is-size-6 has-text-centered is-uppercase">
+									Data Downloader
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Right Side -->
+					<div class="level-right">
+						<div class="level-item">
+							<a class="button is-warning is-pulled-right is-small is-rounded">
+								<span class="icon">
+									<i class="fas fa-key"></i>
+								</span>
+								<span>Insert Credentials</span>
+							</a>
+						</div>
+					</div>
+				</nav>
+
+			</div>
+		</div>
+	</section>
+{{end}}

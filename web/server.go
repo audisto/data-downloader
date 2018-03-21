@@ -23,7 +23,7 @@ var (
 	TemplatesFSPrefix = "/templates/"
 	// TemplateFiles the list of template files to look for inside the embedded FileSystem
 	TemplateFiles = [...]string{
-		"footer.html", "head.html", "home.html", "login.html"}
+		"footer.html", "header.html", "home.html", "login.html"}
 )
 
 func init() {
@@ -49,12 +49,12 @@ func StartWebInterface(port uint, debug bool) {
 	server.GET("/", homeHandler)
 	server.GET("/login", loginHandler)
 	banner :=
-		`                   _ _     _        
-    /\            | (_)   | |       
-   /  \  _   _  __| |_ ___| |_ ___  
-  / /\ \| | | |/ _  | / __| __/ _ \ 
+		`                   _ _     _
+    /\            | (_)   | |
+   /  \  _   _  __| |_ ___| |_ ___
+  / /\ \| | | |/ _  | / __| __/ _ \
  / ____ \ |_| | (_| | \__ \ || (_) |
-/_/    \_\__,_|\__,_|_|___/\__\___/ 
+/_/    \_\__,_|\__,_|_|___/\__\___/
 
 - server started: http://localhost:%d
 `
