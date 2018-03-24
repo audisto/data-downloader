@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"github.com/audisto/data-downloader/web"

@@ -1,12 +1,50 @@
-// +build !windows
+// +build windows
 
-package cmd
+/*
+Colors under Windows are tricky. Windows does not support Ansi colors in some
+builds (even for Windows 10). Useful links on the matter:
+- http://stackoverflow.com/q/44047988/985454
+- https://stackoverflow.com/q/16755142
+- https://github.com/Microsoft/WSL/issues/1173
+
+While we could workaround this (thanks to go-colorable) for simple prints (like
+error messages, usage text, ..etc) we can't easily get this to work with uilive
+realtime updates since both have some escape chars.
+
+uilive has its own writer and buffer. And go-colarable also has its own writer
+that needs a os.File or a terminal device then checks for Windows on its
+own and do the proper escaping. Unfortunaletly there's no "escaped string" under
+Windows, go-colorable has to do direct syscalls to support colors under Windows.
+uilive might need to be patched for this use case.
+
+*/
+package main
 
 import (
 	"fmt"
 
 	"github.com/fatih/color"
 )
+
+// StringYellow returns the plain text as is. Not supported under Windows
+func StringYellow(text string) string {
+	return text
+}
+
+// StringBlue returns the plain text as is. Not supported under Windows
+func StringBlue(text string) string {
+	return text
+}
+
+// StringGreen returns the plain text as is. Not supported under Windows
+func StringGreen(text string) string {
+	return text
+}
+
+// StringRed returns the plain text as is. Not supported under Windows
+func StringRed(text string) string {
+	return text
+}
 
 // CError a Red-colored Error string (with Ansi escape codes, supports Windows)
 func CError(format string, a ...interface{}) error {
@@ -32,26 +70,6 @@ func PrintYellow(format string, a ...interface{}) {
 // PrintBlue prints a blue text into the terminal
 func PrintBlue(format string, a ...interface{}) {
 	color.Blue(format, a...)
-}
-
-// StringYellow format a text with yellow ansi escape codes
-func StringYellow(text string) string {
-	return color.YellowString(text)
-}
-
-// StringBlue format a text with blue ansi escape codes
-func StringBlue(text string) string {
-	return color.BlueString(text)
-}
-
-// StringGreen format a text with string ansi escape codes
-func StringGreen(text string) string {
-	return color.GreenString(text)
-}
-
-// StringRed return a Red string
-func StringRed(text string) string {
-	return color.RedString(text)
 }
 
 // fStringYellow forcibly return a Green string, even under Windwos too.
