@@ -2,7 +2,7 @@
 *.tsv
 *.csv
 .idea
-bin
+bin/
 vendor/
 
 # Binaries
@@ -14,3 +14,6 @@ data-downloader
 
 ### Visual Studio Code
 .vscode
+
+### downloaded data files
+data/
