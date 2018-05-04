@@ -9,7 +9,7 @@ embed-static:
 	go generate web/server.go
 
 install:
-	go install ./{pkg,cmd}/* ./web
+	go install ./pkg/* ./cmd/* ./web
 
 build: embed-static
 	go build -o audisto-cli ./cmd/audisto-cli/...
