@@ -7,6 +7,7 @@ go:
   - tip
 
 install:
+  - go get -u github.com/rakyll/statik
   - make ensure-dependency
   # A workaround for 1.8 package install issues
   - if [ "$TRAVIS_GO_VERSION" = "1.8" ]; then go install; fi
