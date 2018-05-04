@@ -21,6 +21,8 @@
 #  version = "2.4.0"
 
 
+required = ["github.com/rakyll/statik"]
+
 [[constraint]]
   branch = "master"
   name = "github.com/spf13/cobra"
