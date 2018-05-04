@@ -5,7 +5,7 @@ import (
 
 	"github.com/mattn/go-colorable"
 
-	"github.com/audisto/data-downloader/downloader"
+	"github.com/audisto/data-downloader/pkg/downloader"
 	"github.com/spf13/cobra"
 )
 

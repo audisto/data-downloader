@@ -1,3 +1,5 @@
+//go:generate statik -src=./static -dest=./ -f
+
 /*
 IMPORTANT: all static files are embedded inside the final binary.
 */
