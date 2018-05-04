@@ -8,6 +8,9 @@ embed-static:
 	@echo "embedding web static files into the binary..."
 	go generate web/server.go
 
+install:
+	go install ./{pkg,cmd}/* ./web
+
 build: embed-static
 	go build -o audisto-cli ./cmd/audisto-cli/...
 
