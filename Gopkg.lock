@@ -2,12 +2,6 @@
 
 
 [[projects]]
-  name = "github.com/dgrijalva/jwt-go"
-  packages = ["."]
-  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
-  version = "v3.1.0"
-
-[[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
   revision = "507f6050b8568533fb3f5504de8e5205fa62a114"
@@ -32,8 +26,8 @@
 [[projects]]
   name = "github.com/golang/protobuf"
   packages = ["proto"]
-  revision = "925541529c1fa6821df4e44ce2723319eb2be768"
-  version = "v1.0.0"
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -46,26 +40,6 @@
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
   version = "v1.0"
-
-[[projects]]
-  name = "github.com/labstack/echo"
-  packages = [
-    ".",
-    "middleware"
-  ]
-  revision = "b338075a0fc6e1a0683dbf03d09b4957a289e26f"
-  version = "3.2.6"
-
-[[projects]]
-  name = "github.com/labstack/gommon"
-  packages = [
-    "bytes",
-    "color",
-    "log",
-    "random"
-  ]
-  revision = "57409ada9da0f2afad6664c49502f8c50fbd8476"
-  version = "0.2.3"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -95,52 +69,31 @@
   branch = "master"
   name = "github.com/spf13/cobra"
   packages = ["."]
-  revision = "a1e4933ab784095895e33dbe9f001ba10cfe2060"
+  revision = "ef82de70bb3f60c65fb8eebacbb2d122ef517385"
 
 [[projects]]
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
-  version = "v1.0.0"
+  revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
+  version = "v1.0.1"
 
 [[projects]]
   name = "github.com/ugorji/go"
   packages = ["codec"]
-  revision = "9831f2c3ac1068a78f50999a30db84270f647af6"
-  version = "v1.1"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/valyala/bytebufferpool"
-  packages = ["."]
-  revision = "e746df99fe4a3986f4d4f79e13c1e0117ce9c2f7"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/valyala/fasttemplate"
-  packages = ["."]
-  revision = "dcecefd839c4193db0d35b88ec65b4c12d360ab0"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/crypto"
-  packages = [
-    "acme",
-    "acme/autocert"
-  ]
-  revision = "49796115aa4b964c318aad4f3084fdb41e9aa067"
+  revision = "b4c50a2b199d93b13dc15e78929cfb23bfdf21ab"
+  version = "v1.1.1"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+  revision = "6f686a352de66814cdd080d970febae7767857a3"
 
 [[projects]]
   name = "gopkg.in/cheggaaa/pb.v1"
   packages = ["."]
-  revision = "72b964305fba1230d3d818711138195f22b9ceea"
-  version = "v1.0.22"
+  revision = "1f7f140e48255d0e448ec06de47d4545b8ec1f85"
+  version = "v1.0.24"
 
 [[projects]]
   name = "gopkg.in/go-playground/validator.v8"
@@ -149,14 +102,14 @@
   version = "v8.18.2"
 
 [[projects]]
-  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
+  version = "v2.2.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4b3f41c90622ccd73f5f33a6484e5c6d612a64cd6577c56b3c7e3b693cee0020"
+  inputs-digest = "4b2156a2afff5c710f6c542540139436a77a997199fa127e6bd51951363c19af"
   solver-name = "gps-cdcl"
   solver-version = 1
