@@ -21,18 +21,28 @@
 #  version = "2.4.0"
 
 
+required = ["github.com/rakyll/statik"]
+
 [[constraint]]
   branch = "master"
   name = "github.com/spf13/cobra"
 
 [[constraint]]
   name = "github.com/fatih/color"
-  version = "1.5.0"
+  version = "1.6.0"
 
 [[constraint]]
   name = "gopkg.in/cheggaaa/pb.v1"
-  version = "1.0.18"
+  version = "1.0.22"
 
 [[constraint]]
   branch = "master"
   name = "github.com/gosuri/uilive"
+
+[[constraint]]
+  name = "github.com/rakyll/statik"
+  version = "0.1.1"
+
+[[constraint]]
+  name = "github.com/gin-gonic/gin"
+  version = "1.2.0"

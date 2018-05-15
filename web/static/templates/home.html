@@ -1,0 +1,146 @@
+{{template "header" .}}
+<section class="section" style="padding:2%">
+	<div class="container">
+		<div class="columns is-vcentered" style="margin-bottom:0">
+			<div class="column is-narrow is-1">
+				Progress:
+			</div>
+			<div class="column is-narrow is-10">
+				<progress class="progress is-primary" value="15" max="100">15%</progress>
+			</div>
+			<div class="column is-narrow is-paddingless is-1 has-text-right">
+				<button class="button is-success">
+					<span class="icon is-small">
+						<i class="fas fa-play-circle"></i>
+					</span>
+				</button>
+				<button class="button is-danger">
+					<span class="icon is-small">
+						<i class="fas fa-stop-circle"></i>
+					</span>
+				</button>
+			</div>
+		</div>
+		<div class="columns has-text-grey">
+			<div class="column is-narrow is-offset-1 is-2">ETA: 60 Seconds</div>
+			<div class="column is-narrow has-text-right is-2">Total Elements: 58931</div>
+			<div class="column is-narrow has-text-right is-2">Chunk Size: 1000</div>
+			<div class="column is-narrow has-text-right is-2">Done Elements: 58931</div>
+			<div class="column is-narrow has-text-right is-2">Errors: 0</div>
+		</div>
+	</div>
+</section>
+<hr>
+<section>
+
+	<div class="container">
+		<div class="columns">
+			<div class="column is-4">
+				<label class="label">Crawl ID</label>
+				<div class="control">
+					<input class="input" type="text" placeholder="e.g. 12345">
+				</div>
+				<p class="help">Crawl number</p>
+			</div>
+			<div class="column is-4">
+				<div class="field">
+					<label class="label">Mode:</label>
+					<div class="control">
+						<div class="select">
+							<select>
+								<option>Pages</option>
+								<option>Links</option>
+							</select>
+						</div>
+					</div>
+					<p class="help">Choose a download mode</p>
+				</div>
+			</div>
+			<div class="column">
+				<div class="field">
+					<label class="label">Target Links:</label>
+					<div class="file is-info">
+						<label class="file-label">
+							<input class="file-input" type="file" name="resume">
+							<span class="file-cta">
+								<span class="file-icon">
+									<i class="fas fa-upload"></i>
+								</span>
+								<span class="file-label">
+									Targets file:
+								</span>
+							</span>
+							<span class="file-name">
+								example-links.tsv
+							</span>
+						</label>
+					</div>
+					<p class="help">Choose a file with links IDs</p>
+				</div>
+			</div>
+		</div>
+
+	</div>
+</section>
+
+<section>
+	<div class="container">
+		<div class="columns is-vcentered">
+			<div class="column is-4">
+				<label class="label">Filter Results</label>
+				<div class="control">
+					<input class="input" type="text" placeholder="e.g. http_status:404">
+				</div>
+				<p class="help">Comma separated filters</p>
+			</div>
+			<div class="column is-4">
+				<label class="label">Order Results</label>
+				<div class="control">
+					<input class="input" type="text" placeholder="">
+				</div>
+				<p class="help">Order your result by some criteria</p>
+			</div>
+			<div class="column is-2">
+				<label class="checkbox">
+					<input type="checkbox">
+					Do not Resume?
+				</label>
+			</div>
+			<div class="column is-2">
+				<label class="checkbox">
+					<input type="checkbox">
+					Hide Details?
+				</label>
+			</div>
+		</div>
+	</div>
+</section>
+
+<hr>
+
+<section style="padding-bottom: 3%">
+	<div class="container">
+
+		<div class="columns">
+			<div class="column is-4">
+				<p class="is-size-5 has-text-weight-semibold">Custom Credential</p>
+				<p class="is-size-6">Override the inserted credentials</p>
+			</div>
+			<div class="column is-4">
+				<label class="label">Username</label>
+				<div class="control">
+					<input class="input" type="text" placeholder="e.g. 8bcc51d9-vrn4-5bc4-cghi-90beqn23e62c">
+				</div>
+				<p class="help">Your Audisto API username</p>
+			</div>
+			<div class="column is-4">
+				<label class="label">Password</label>
+				<div class="control">
+					<input class="input" type="password" placeholder="e.g. 705b3219-br7c-5e6b-pee4-tt1d62wi689d">
+				</div>
+				<p class="help">Your Audisto API password</p>
+			</div>
+		</div>
+	</div>
+</section>
+{{template "footer" .}}
