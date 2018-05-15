@@ -30,6 +30,12 @@
   version = "v1.1.0"
 
 [[projects]]
+  name = "github.com/gorilla/websocket"
+  packages = ["."]
+  revision = "ea4d1f681babbce9545c9c5f3d5194a789c89f5b"
+  version = "v1.2.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/gosuri/uilive"
   packages = ["."]
@@ -58,6 +64,12 @@
   packages = ["."]
   revision = "9e777a8366cce605130a531d2cd6363d07ad7317"
   version = "v0.0.2"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/go-homedir"
+  packages = ["."]
+  revision = "b8bc1bf767474819792c23f32d8286a45736f1c6"
 
 [[projects]]
   name = "github.com/rakyll/statik"
@@ -105,6 +117,12 @@
   version = "v8.18.2"
 
 [[projects]]
+  name = "gopkg.in/olahol/melody.v1"
+  packages = ["."]
+  revision = "d521390733761fe1db13de575c253afd5c743085"
+  version = "v1"
+
+[[projects]]
   name = "gopkg.in/yaml.v2"
   packages = ["."]
   revision = "5420a8b6744d3b0345ab293f6fcba19c978f1183"
@@ -113,6 +131,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "aa856d2b53fff917b2343931aa7c574d13f4f403b64e539b006b8a60ba8b4d40"
+  inputs-digest = "929ec7edc55b6066f09284bb1bd7a3dca6fb35e679f7d372e5761caf1d357c85"
   solver-name = "gps-cdcl"
   solver-version = 1

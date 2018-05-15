@@ -55,6 +55,9 @@ type Downloader struct {
 	CurrentTarget             currentTarget `json:"currentTarget"`
 	PagesSelfTargetsCompleted bool          `json:"pagesSelfTargetsCompleted"`
 
+	// Stop a switch to stop the current download
+	Stop bool
+
 	// Output filename can be change when the downloaded has more than one stage
 	// we keep the orginal filename here to be used in suffix/resume operations and checks
 	origOutputFilename     string
@@ -92,11 +95,12 @@ type currentTarget struct {
 func New(reportProgress chan<- StatusReport) *Downloader {
 	if reportProgress != nil {
 		return &Downloader{
+			Stop:   false,
 			status: reportProgress,
 			done:   make(chan struct{}),
 		}
 	}
-	return &Downloader{}
+	return &Downloader{Stop: false}
 }
 
 // getResumeFilename construct the complete file path of the resume file.
@@ -152,9 +156,9 @@ func (d *Downloader) tryResume(noDetails bool) (canBeResumed bool, err error) {
 	// check if we already have a complete download before?
 	if DownloadCompleted(d.OutputFilename, d.getResumeFilename()) {
 		if d.currentTargetsFilename == "self" {
-			err = fmt.Errorf("%q file and its targets links file seem already downloaded: use --no-resume to create a new", d.OutputFilename)
+			err = fmt.Errorf("%q file and its targets links file seem already downloaded: use no-resume to create a new", d.OutputFilename)
 		} else {
-			err = fmt.Errorf("%q file seems already downloaded: use --no-resume to create new", d.OutputFilename)
+			err = fmt.Errorf("%q file seems already downloaded: use no-resume to create new", d.OutputFilename)
 		}
 		return false, err
 	}
@@ -387,6 +391,11 @@ func (d *Downloader) throttle(timeoutCount *int) {
 func (d *Downloader) downloadTarget() error {
 
 	for !d.isDone() {
+
+		if d.Stop {
+			return fmt.Errorf("Downloader stopped")
+		}
+
 		var processedLines int64
 		d.debugf("Calling next chunk")
 		var chunk []byte
@@ -400,6 +409,10 @@ func (d *Downloader) downloadTarget() error {
 		})
 
 		if err != nil {
+			if err.Error() == "stopped" {
+				return fmt.Errorf("Downloader stopped")
+			}
+
 			d.debugf("Too many failures while calling next chunk; %v\n", err)
 			return fmt.Errorf("Network error; please check your connection to the internet and resume download")
 		}
@@ -517,7 +530,7 @@ func (d *Downloader) downloadTarget() error {
 
 // Start runs the overall download logic after the initialization and validation steps
 func (d *Downloader) Start() error {
-
+	d.Stop = false
 	// ensure we have total elements to download
 	if !d.isInTargetsMode() || d.currentTargetsFilename == "self" {
 		d.calculateTotalElements()
@@ -557,7 +570,7 @@ func (d *Downloader) Start() error {
 
 	if d.isInTargetsMode() {
 		if d.currentTargetsFilename != "self" {
-			for d.TargetsFileNextID < d.totalIDsCount {
+			for d.TargetsFileNextID < d.totalIDsCount && !d.Stop {
 				pageID := d.ids[d.TargetsFileNextID]
 				totalElements, err := d.calculateTotalElementsForTargetPage(pageID) // d.elements[pageID]
 				if err != nil {
@@ -580,7 +593,7 @@ func (d *Downloader) Start() error {
 			}
 		} else { // self mode, needs a special handling.
 			// check if the file containing link IDs has been downloaded using the pages API
-			if !d.PagesSelfTargetsCompleted {
+			if !d.PagesSelfTargetsCompleted && !d.Stop {
 				// ensure mode is set to pages
 				d.client.Mode = "pages"
 				if d.DoneElements > 0 {
@@ -781,6 +794,9 @@ func (d *Downloader) appendLog(logType LogType, message string) {
 
 // a shortcut to retry with Downloader receiver
 func (d *Downloader) retry(attempts int, sleep int, callback func() error) (err error) {
+	if d.Stop {
+		return fmt.Errorf("stopped")
+	}
 	return retry(attempts, sleep, callback, d)
 }
 

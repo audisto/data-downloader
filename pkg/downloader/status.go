@@ -17,9 +17,9 @@ var (
 
 	averageTimePer1000 float64 = 1
 
-	// RefresInterval time between to progress updates
+	// RefreshInterval time between to progress updates
 	// Export so the caller can fine-tune this
-	RefresInterval = time.Millisecond * 100
+	RefreshInterval = time.Millisecond * 100
 )
 
 // StatusReport a struct holding the progress status of the current download
@@ -57,7 +57,7 @@ func reportProgressStatus(downloader *Downloader) {
 				return
 			default:
 				downloader.status <- downloader.ProgressReport()
-				time.Sleep(RefresInterval)
+				time.Sleep(RefreshInterval)
 			}
 		}
 	}
