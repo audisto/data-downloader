@@ -25,7 +25,7 @@ var (
 	TemplatesFSPrefix = "/templates/"
 	// TemplateFiles the list of template files to look for inside the embedded FileSystem
 	TemplateFiles = [...]string{
-		"footer.html", "header.html", "home.html", "login.html"}
+		"footer.html", "header.html", "home.html"}
 )
 
 func init() {
@@ -44,25 +44,21 @@ func StartWebInterface(port uint, debug bool) {
 	}
 
 	server := gin.New()
+	webDownloader := NewWebDownloader()
 	server.SetHTMLTemplate(getTemplates())
 	server.Use(Logger())
 	server.Use(gin.Recovery())
 	server.StaticFS("/static", EmbeddedFS)
-	server.GET("/", homeHandler)
-	server.GET("/login", loginHandler)
-	banner :=
-		`                   _ _     _
-    /\            | (_)   | |
-   /  \  _   _  __| |_ ___| |_ ___
-  / /\ \| | | |/ _  | / __| __/ _ \
- / ____ \ |_| | (_| | \__ \ || (_) |
-/_/    \_\__,_|\__,_|_|___/\__\___/
+	server.GET("/", webDownloader.homeHandler)
+	server.POST("/login", webDownloader.doLogin)
+	server.GET("/logout", webDownloader.doLogout)
+	server.POST("/download", webDownloader.downloadHandler)
+	server.POST("/stop", webDownloader.stopHandler)
+	server.GET("/progress", webDownloader.progressHandler)
 
-- server started: http://localhost:%d
-`
 	fmt.Printf(banner, port)
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	server.Run(addr) // listen and serve on 0.0.0.0:8080
+	addr := fmt.Sprintf("0.0.0.0:%d", port)
+	server.Run(addr)
 }
 
 func getTemplates() *template.Template {
