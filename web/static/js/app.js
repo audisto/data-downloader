@@ -54,6 +54,10 @@ $( document ).ready(function() {
   });
 
 
+  $("#close-notification-btn").on( "click", function() {
+    $("#notifications").fadeOut("slow")
+  });
+
   $("#login-cancel,#modal-close-button").on( "click", function() {
     $("#login-modal").removeClass('is-active').addClass('is-clipped')
   });
