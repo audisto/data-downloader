@@ -10,16 +10,14 @@ var apiDownload = function(downloadOptions){
     success: function(data, textStatus, jqXHR)
     {
       $("#notifications").removeClass('is-danger').addClass('is-success');
-      $("#notifications").html(data.message)
-      $("#notifications").fadeIn("slow");
-      $("#notifications").fadeOut("slow");
+      $("#notifications-content").html(data.message)
+      $("#notifications").fadeIn("slow")
     },
     error: function(jqXHR, textStatus, errorThrown)
     {
       $("#notifications").removeClass('is-success').addClass('is-danger');
-      $("#notifications").html(jqXHR.responseJSON.error)
+      $("#notifications-content").html(jqXHR.responseJSON.error)
       $("#notifications").fadeIn("slow")
-      $("#notifications").fadeOut("slow")
     }
   });
 }
@@ -34,16 +32,14 @@ var apiStopDownload = function() {
     success: function(data, textStatus, jqXHR)
     {
       $("#notifications").removeClass('is-danger').addClass('is-success')
-      $("#notifications").html(data.message)
-      $("#notifactions").fadeIn("slow");
-      $("#notifactions").fadeOut("slow");
+      $("#notifications-content").html(data.message)
+      $("#notifications").fadeIn("slow")
     },
     error: function(jqXHR, textStatus, errorThrown)
     {
       ("#notifications").removeClass('is-success').addClass('is-danger')
-      $("#notifications").html(jqXHR.responseJSON.error)
+      $("#notifications-content").html(jqXHR.responseJSON.error)
       $("#notifications").fadeIn("slow")
-      $("#notifications").fadeOut("slow")
     }
   });
 }
@@ -58,16 +54,14 @@ var apiLogin = function(username, password) {
     success: function(data, textStatus, jqXHR)
     {
       $("#notifications").removeClass('is-danger').addClass('is-success');
-      $("#notifications").html(data.message)
-      $("#notifications").fadeIn("slow");
-      $("#notifications").fadeOut("slow");
+      $("#notifications-content").html(data.message)
+      $("#notifications").fadeIn("slow")
     },
     error: function(jqXHR, textStatus, errorThrown)
     {
       $("#notifications").removeClass('is-success').addClass('is-danger');
-      $("#notifications").html(jqXHR.responseJSON.error)
+      $("#notifications-content").html(jqXHR.responseJSON.error)
       $("#notifications").fadeIn("slow")
-      $("#notifications").fadeOut("slow")
     }
   });
 }
@@ -82,16 +76,14 @@ var apiLogout = function() {
     success: function(data, textStatus, jqXHR)
     {
       $("#notifications").removeClass('is-danger').addClass('is-success');
-      $("#notifications").html(data.message)
-      $("#notifications").fadeIn("slow");
-      $("#notifications").fadeOut("slow");
+      $("#notifications-content").html(data.message)
+      $("#notifications").fadeIn("slow")
     },
     error: function(jqXHR, textStatus, errorThrown)
     {
       $("#notifications").removeClass('is-success').addClass('is-danger');
-      $("#notifications").html(jqXHR.responseJSON.error)
+      $("#notifications-content").html(jqXHR.responseJSON.error)
       $("#notifications").fadeIn("slow")
-      $("#notifications").fadeOut("slow")
     }
   });
 }
