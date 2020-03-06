@@ -44,7 +44,7 @@ DD_DEBUG=true data-downloader [flags]
 
 ## Installation
 
-You may download the latest compiled executables from the [releases section](https://github.com/audisto/data-downloader/releases). Even beta versions are very stable - you should always download the latest version. Download the version for your OS (PC, Mac or Linux) and maybe rename it for example into `data-downloader`.
+You may download the latest compiled executables from the [releases section](https://github.com/audisto/data-downloader/releases). Even beta versions are very stable - you should always download the latest version. Download the version for your OS (Windows, Mac OS or Linux) and maybe rename it for example into `data-downloader`.
 
 Hint for Macintosh Users if you can't use the executable because its a .dms:
 
@@ -66,7 +66,7 @@ If you use the PowerShell, instead of a command prompt, you need to prefix the e
 
 ## Usage by Web Interface
 
-A more comfortable way to use the data-downloader is by starting the local web server that provides you with a web interface you can use via any browser. You start the data downloader server by using the "web" option. For PC PowerShell like this:
+A more comfortable way to use the data-downloader is by starting the local web server that provides you with a web interface you can use via any browser. You start the data downloader server by using the "web" option. For Windows PowerShell like this:
 
 ```powershell
 .\data-downloader.exe web
@@ -116,7 +116,7 @@ data-downloader [OPTIONS] --targets=self
 
 ### Example: Download all 30x Redirects, but add target links
 
-Download the 301, 302, etc. by using a command line with the proper user & file options similar to the Audisto export dialogue and manually add the links-mode parameter (or switch the mode in the web interface) and add the `--filter=type:30x`
+Download the 301, 302, etc. by using a command line with the proper user and file options similar to the Audisto export dialogue and manually add the links mode parameter (or switch the mode in the web interface) and than add the filter using `--filter=type:30x`.
 
 ```shell
 data-downloader [OPTIONS] --mode=links --filter=type:30x
