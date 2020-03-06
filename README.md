@@ -30,8 +30,8 @@ Parameters:
 Examples to start a new download or resume a download with all details, using long or short versions:
 
 ```shell
-./data-downloader --username="USERNAME" --password="PASSWORD" --crawl=12345 --output="myCrawl.tsv"
-./data-downloader -u="USERNAME" -p="PASSWORD" -c=12345 -o="myCrawl.tsv"
+data-downloader --username="USERNAME" --password="PASSWORD" --crawl=12345 --output="myCrawl.tsv"
+data-downloader -u="USERNAME" -p="PASSWORD" -c=12345 -o="myCrawl.tsv"
 ```
 
 ### Debug / Verbose mode
@@ -111,7 +111,7 @@ Save the shortcut and you are done. Now you can start the web server with an eas
 Download the 404 by copying the command line from within the Audisto export dialogue including the `--filter=http_status:404` and manually add the targets=self parameter or check the "Use the downloaded pages as a target" in the web interface.
 
 ```shell
-./data-downloader [OPTIONS] --targets=self
+data-downloader [OPTIONS] --targets=self
 ```
 
 ### Example: Download all 30x Redirects, but add target links
@@ -119,7 +119,7 @@ Download the 404 by copying the command line from within the Audisto export dial
 Download the 301, 302, etc. by using a command line with the proper user & file options similar to the Audisto export dialogue and manually add the links-mode parameter (or switch the mode in the web interface) and add the `--filter=type:30x`
 
 ```shell
-./data-downloader [OPTIONS] --mode=links --filter=type:30x
+data-downloader [OPTIONS] --mode=links --filter=type:30x
 ```
 
 *Note: The type 30x is valid to use and also do not confuse e.g. filter=type:301 (link) with filter=http_status:301 (page).*
