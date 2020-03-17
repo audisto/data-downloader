@@ -1,0 +1,169 @@
+{{template "header" .}}
+<form action="/download" method="POST" id="download-form">
+
+	<section class="section" style="padding:2%">
+		<div class="container">
+			<div class="columns is-vcentered" style="margin-bottom:0">
+				<div class="column is-narrow is-1">
+					Progress:
+				</div>
+				<div class="column is-narrow is-10">
+					<progress class="progress is-primary" value="0" max="100">0%</progress>
+				</div>
+				<div class="column is-narrow is-paddingless is-1 has-text-right">
+					<button type="submit" class="button is-success" id="start-download-button">
+						<span class="icon is-small">
+							<i class="fas fa-play-circle"></i>
+						</span>
+					</button>
+					<a class="button is-danger" id="stop-download-button">
+						<span class="icon is-small">
+							<i class="fas fa-stop-circle"></i>
+						</span>
+					</a>
+				</div>
+			</div>
+			<div class="columns has-text-grey">
+				<div id="ETA" class="column is-narrow is-offset-1 is-2">ETA: N/A</div>
+				<div id="totalElements" class="column is-narrow has-text-right is-2">Total Elements: N/A</div>
+				<div id="chunkSize" class="column is-narrow has-text-right is-2">Chunk Size: N/A</div>
+				<div id="doneElements" class="column is-narrow has-text-right is-2">Done Elements: N/A</div>
+				<div id="errors" class="column is-narrow has-text-right is-2">Errors: N/A</div>
+			</div>
+			<div class="notification is-success" id="notifications" style="display: none">
+				<strong>Info:</strong> Download started.
+			</div>
+		</div>
+	</section>
+	<hr>
+
+	<section>
+
+		<div class="container">
+			<div class="columns">
+				<div class="column is-4">
+					<label class="label">Crawl ID</label>
+					<div class="control">
+						<input name="crawlID" id="crawlID-input" class="input" type="text" placeholder="e.g. 12345" required>
+					</div>
+					<p class="help">Crawl number</p>
+				</div>
+				<div class="column is-4">
+					<div class="field">
+						<label class="label">Mode:</label>
+						<div class="control">
+							<div class="select">
+								<select id="mode-select">
+									<option>Pages</option>
+									<option>Links</option>
+								</select>
+							</div>
+						</div>
+						<p class="help">Choose a download mode</p>
+					</div>
+				</div>
+				<div class="column">
+
+					<label id="target-is-self-checkbox-container" class="checkbox">
+						<input id="target-is-self-checkbox" type="checkbox">
+						Use the downloaded pages as a target?
+					</label>
+
+					<div id="target-file-input-container" class="field">
+						<label class="label">Target Links:</label>
+						<div class="file is-info">
+							<label class="file-label">
+								<input id="target-file-input" class="file-input" type="file" name="resume">
+								<span class="file-cta">
+									<span class="file-icon">
+										<i class="fas fa-upload"></i>
+									</span>
+									<span class="file-label">
+										Targets file:
+									</span>
+								</span>
+								<span class="file-name">
+									example-links.tsv
+								</span>
+							</label>
+						</div>
+						<p class="help">Choose a file with links IDs</p>
+					</div>
+				</div>
+			</div>
+
+		</div>
+	</section>
+
+	<section>
+		<div class="container">
+			<div class="columns is-vcentered">
+				<div class="column is-4">
+					<label class="label">Filter Results</label>
+					<div class="control">
+						<input name="filter" id="filter-input" class="input" type="text" placeholder="e.g. http_status:404">
+					</div>
+					<p class="help">Comma separated filters</p>
+				</div>
+				<div class="column is-4">
+					<label class="label">Order Results</label>
+					<div class="control">
+						<input name="order" id="order-input" class="input" type="text" placeholder="">
+					</div>
+					<p class="help">Order your result by some criteria</p>
+				</div>
+				<div class="column is-2">
+					<label class="checkbox">
+						<input name="resume" id="do-not-resume-checkbox" type="checkbox">
+						Do not Resume?
+					</label>
+				</div>
+				<div class="column is-2">
+					<label class="checkbox">
+						<input id="hide-details-checkbox" type="checkbox">
+						Hide Details?
+					</label>
+				</div>
+			</div>
+			<div class="columns">
+				<div class="column">
+					<label class="label">Output Filepath</label>
+					<div class="control">
+						<input name="output-path" id="output-filepath-input" class="input" type="text" placeholder="e.g. /Path/To/Home/Downloads/download-result.tsv" required>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<hr>
+
+	<section style="padding-bottom: 3%">
+		<div class="container">
+
+			<div class="columns">
+				<div class="column is-4">
+					<p class="is-size-5 has-text-weight-semibold">Custom Credential</p>
+					<p class="is-size-6">Override the inserted credentials</p>
+				</div>
+				<div class="column is-4">
+					<label class="label">Username</label>
+					<div class="control">
+						<input name="username" id="custom-username-input" class="input" type="text" placeholder="e.g. 8bcc51d9-vrn4-5bc4-cghi-90beqn23e62c">
+					</div>
+					<p class="help">Your Audisto API username</p>
+				</div>
+				<div class="column is-4">
+					<label class="label">Password</label>
+					<div class="control">
+						<input name="password" id="custom-password-input" class="input" type="password" placeholder="e.g. 705b3219-br7c-5e6b-pee4-tt1d62wi689d">
+					</div>
+					<p class="help">Your Audisto API password</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+</form>
+
+{{template "footer" .}}

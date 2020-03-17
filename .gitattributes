@@ -1,0 +1,8 @@
+# Make git treat embedded resources (css, js, images) via statik as binary
+# So we can include them in the repository but git won't bother diff'ing them
+# Plus, they're indeed embedded inside the final binary, and should be treated like so.
+
+web/statik/statik.go    binary
+
+# Why committing this file in the first place?
+# - Keep the whole project 'go get'-table, with a standalone binary (resources embedded)

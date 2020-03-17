@@ -1,0 +1,19 @@
+go_import_path: github.com/audisto/data-downloader
+language: go
+go:
+  - 1.8
+  - 1.9
+  - "1.10"
+  - tip
+
+install:
+  - go get -u github.com/rakyll/statik
+  - make ensure-dependency
+  # A workaround for 1.8 package install issues
+  - if [ "$TRAVIS_GO_VERSION" = "1.8" ]; then make install; fi
+
+script:
+  - make test
+matrix:
+  allow_failures:
+    - go: tip
