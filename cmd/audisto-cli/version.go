@@ -7,7 +7,7 @@ import (
 )
 
 // VERSION Audisto data downloader version number
-const VERSION = "0.6"
+const VERSION = "0.7"
 
 func init() {
 	RootCmd.AddCommand(versionCmd)
