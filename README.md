@@ -114,15 +114,23 @@ Download the 404 by copying the command line from within the Audisto export dial
 data-downloader [OPTIONS] --targets=self
 ```
 
-### Example: Download all 30x Redirects, but add target links
+### Example: Download all 30x Redirects as source and target pages
 
-Download the 301, 302, etc. by using a command line with the proper user and file options similar to the Audisto export dialogue and manually add the links mode parameter (or switch the mode in the web interface) and than add the filter using `--filter=type:30x`.
+Download the 301, 302, etc. by using a command line with the proper user and
+file options similar to the Audisto export dialogue and manually add the
+links mode parameter (or switch the mode in the web interface) and
+than add the filter using `--filter=type:30x`.
 
 ```shell
-data-downloader [OPTIONS] --mode=links --filter=type:30x
+data-downloader [OPTIONS] --mode=links --filter=type:30x --no-details
 ```
 
-*Note: The type 30x is valid to use and also do not confuse e.g. filter=type:301 (link) with filter=http_status:301 (page).*
+Using the `--no-details` is generally encouraged when using `--mode=links`.
+If it is omitted, all page related data is added for both source and target pages,
+which can become very slow.
+
+*Note: The type 30x is valid to use and also do not confuse e.g.
+filter=type:301 (link) with filter=http_status:301 (page).*
 
 ## Installation from Source
 
